@@ -7,7 +7,7 @@
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "restoran-hesap-kitap",
+    "scheme": "restoranhesapkitap",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -15,7 +15,16 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.yourcompany.restoranhesapkitap"
+      "bundleIdentifier": "com.restoranhesapkitap.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Fatura ve fiş fotoğrafı çekmek için kamera erişimi gereklidir.",
+        "NSPhotoLibraryUsageDescription": "Fatura ve fiş fotoğrafı yüklemek için galeri erişimi gereklidir.",
+        "CFBundleLocalizations": ["tr"],
+        "CFBundleDevelopmentRegion": "tr"
+      },
+      "config": {
+        "usesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,18 +32,26 @@
         "backgroundColor": "#10b981"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.yourcompany.restoranhesapkitap"
+      "package": "com.restoranhesapkitap.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
-    "plugins": [
-      "expo-router",
-      "expo-secure-store"
-    ],
+    "plugins": ["expo-router", "expo-secure-store"],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": ""
+      }
+    },
+    "owner": ""
   }
 }

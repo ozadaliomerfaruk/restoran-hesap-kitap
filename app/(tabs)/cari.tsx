@@ -11,6 +11,8 @@ import {
   LayoutAnimation,
   Platform,
   UIManager,
+  Modal,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import {
@@ -26,11 +28,17 @@ import {
   Calendar,
   FileText,
   ChevronRight,
+  X,
+  Check,
+  Search,
+  PlusCircle,
 } from "lucide-react-native";
 import { useStore } from "../../src/store/useStore";
+import { supabase } from "../../src/lib/supabase";
 import AddCariModal from "../../src/components/AddCariModal";
 import CariDetayModal from "../../src/components/CariDetayModal";
 import KalemliFaturaModal from "../../src/components/Kalemlifaturamodal";
+import DatePickerField from "../../src/components/DatePickerField";
 import { Cari, CariType } from "../../src/types";
 
 // Android için LayoutAnimation'ı etkinleştir
@@ -85,6 +93,7 @@ export default function CariScreen() {
     addIslem,
     kategoriler,
     fetchKategoriler,
+    addKategori,
   } = useStore();
 
   const [showAddModal, setShowAddModal] = useState(false);
@@ -109,7 +118,17 @@ export default function CariScreen() {
   const [formKasaId, setFormKasaId] = useState("");
   const [formKategoriId, setFormKategoriId] = useState("");
   const [showKategoriPicker, setShowKategoriPicker] = useState(false);
+  const [showKategoriModal, setShowKategoriModal] = useState(false);
+  const [kategoriSearch, setKategoriSearch] = useState("");
   const [formLoading, setFormLoading] = useState(false);
+
+  // Yeni kategori ekleme
+  const [showAddKategori, setShowAddKategori] = useState(false);
+  const [newKategoriName, setNewKategoriName] = useState("");
+  const [newKategoriParentId, setNewKategoriParentId] = useState<string | null>(
+    null
+  );
+  const [addingKategori, setAddingKategori] = useState(false);
 
   useEffect(() => {
     fetchProfile();
@@ -127,6 +146,44 @@ export default function CariScreen() {
     setRefreshing(true);
     await Promise.all([fetchCariler(), fetchKasalar()]);
     setRefreshing(false);
+  };
+
+  // Yeni kategori ekleme fonksiyonu
+  const handleAddKategori = async () => {
+    if (!newKategoriName.trim()) {
+      Alert.alert("Hata", "Kategori adı boş olamaz");
+      return;
+    }
+
+    setAddingKategori(true);
+    try {
+      const { data, error } = await supabase
+        .from("kategoriler")
+        .insert({
+          restaurant_id: profile?.restaurant_id,
+          name: newKategoriName.trim(),
+          type: "gider", // Alış için gider kategorisi
+          parent_id: newKategoriParentId || null,
+          is_default: false,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      // Kategoriyi seç ve listeyi güncelle
+      await fetchKategoriler();
+      setFormKategoriId(data.id);
+      setNewKategoriName("");
+      setNewKategoriParentId(null);
+      setShowAddKategori(false);
+      Alert.alert("Başarılı", "Kategori eklendi");
+    } catch (error: any) {
+      console.error("Kategori ekleme hatası:", error);
+      Alert.alert("Hata", error.message || "Kategori eklenemedi");
+    } finally {
+      setAddingKategori(false);
+    }
   };
 
   const filteredCariler = cariler
@@ -392,16 +449,7 @@ export default function CariScreen() {
             {activeIslemTipi && (
               <View style={styles.formContainer}>
                 {/* Tarih */}
-                <View style={styles.formRow}>
-                  <Calendar size={18} color="#6b7280" />
-                  <TextInput
-                    style={styles.formInput}
-                    value={formDate}
-                    onChangeText={setFormDate}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#9ca3af"
-                  />
-                </View>
+                <DatePickerField value={formDate} onChange={setFormDate} />
 
                 {/* Kasa Seçimi - Sadece ödeme ve tahsilat için */}
                 {(activeIslemTipi === "odeme" ||
@@ -433,72 +481,28 @@ export default function CariScreen() {
                   </ScrollView>
                 )}
 
-                {/* Kategori Seçimi - Sadece alış için */}
+                {/* Kategori Seçimi - Sadece alış için - Modal açar */}
                 {activeIslemTipi === "alis" && (
-                  <View style={styles.kategoriSection}>
-                    <TouchableOpacity
-                      style={styles.kategoriDropdown}
-                      onPress={() => setShowKategoriPicker(!showKategoriPicker)}
+                  <TouchableOpacity
+                    style={styles.kategoriSelectBtn}
+                    onPress={() => {
+                      setKategoriSearch("");
+                      setShowKategoriModal(true);
+                    }}
+                  >
+                    <Text
+                      style={[
+                        styles.kategoriSelectText,
+                        !formKategoriId && styles.kategoriSelectPlaceholder,
+                      ]}
                     >
-                      <Text
-                        style={[
-                          styles.kategoriDropdownText,
-                          !formKategoriId && styles.kategoriDropdownPlaceholder,
-                        ]}
-                      >
-                        {formKategoriId
-                          ? kategoriler.find((k) => k.id === formKategoriId)
-                              ?.name || "Kategori seç"
-                          : "Kategori seç (opsiyonel)"}
-                      </Text>
-                      <ChevronDown size={18} color="#6b7280" />
-                    </TouchableOpacity>
-
-                    {showKategoriPicker && (
-                      <View style={styles.kategoriPickerContainer}>
-                        <ScrollView
-                          style={styles.kategoriPicker}
-                          nestedScrollEnabled
-                        >
-                          <TouchableOpacity
-                            style={styles.kategoriOption}
-                            onPress={() => {
-                              setFormKategoriId("");
-                              setShowKategoriPicker(false);
-                            }}
-                          >
-                            <Text style={styles.kategoriOptionText}>
-                              Seçilmedi
-                            </Text>
-                          </TouchableOpacity>
-                          {kategoriler.map((kat) => (
-                            <TouchableOpacity
-                              key={kat.id}
-                              style={[
-                                styles.kategoriOption,
-                                formKategoriId === kat.id &&
-                                  styles.kategoriOptionActive,
-                              ]}
-                              onPress={() => {
-                                setFormKategoriId(kat.id);
-                                setShowKategoriPicker(false);
-                              }}
-                            >
-                              <Text
-                                style={[
-                                  styles.kategoriOptionText,
-                                  formKategoriId === kat.id &&
-                                    styles.kategoriOptionTextActive,
-                                ]}
-                              >
-                                {kat.name}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </ScrollView>
-                      </View>
-                    )}
-                  </View>
+                      {formKategoriId
+                        ? kategoriler.find((k) => k.id === formKategoriId)
+                            ?.name || "Kategori seç"
+                        : "Kategori seç (opsiyonel)"}
+                    </Text>
+                    <ChevronRight size={18} color="#6b7280" />
+                  </TouchableOpacity>
                 )}
 
                 {/* Açıklama */}
@@ -563,116 +567,130 @@ export default function CariScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.title}>Cariler</Text>
-        <TouchableOpacity
-          style={styles.addButton}
-          onPress={() => setShowAddModal(true)}
-        >
-          <Plus size={24} color="#fff" />
-        </TouchableOpacity>
-      </View>
-
-      {/* Özet Kartları */}
-      {(toplamTedarikciBorc > 0 || toplamMusteriAlacak > 0) && (
-        <View style={styles.summaryRow}>
-          {toplamTedarikciBorc > 0 && (
-            <View style={[styles.summaryCard, { borderLeftColor: "#ef4444" }]}>
-              <Text style={styles.summaryLabel}>Tedarikçi Borcu</Text>
-              <Text style={[styles.summaryAmount, { color: "#ef4444" }]}>
-                {formatCurrency(toplamTedarikciBorc)}
-              </Text>
-            </View>
-          )}
-          {toplamMusteriAlacak > 0 && (
-            <View style={[styles.summaryCard, { borderLeftColor: "#10b981" }]}>
-              <Text style={styles.summaryLabel}>Müşteri Alacağı</Text>
-              <Text style={[styles.summaryAmount, { color: "#10b981" }]}>
-                {formatCurrency(toplamMusteriAlacak)}
-              </Text>
-            </View>
-          )}
-        </View>
-      )}
-
-      {/* Filtre */}
-      <View style={styles.filterContainer}>
-        <TouchableOpacity
-          style={[styles.filterBtn, filter === "all" && styles.filterBtnActive]}
-          onPress={() => setFilter("all")}
-        >
-          <Text
-            style={[
-              styles.filterText,
-              filter === "all" && styles.filterTextActive,
-            ]}
-          >
-            Tümü ({cariler.length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.filterBtn,
-            filter === "tedarikci" && styles.filterBtnActive,
-          ]}
-          onPress={() => setFilter("tedarikci")}
-        >
-          <Text
-            style={[
-              styles.filterText,
-              filter === "tedarikci" && styles.filterTextActive,
-            ]}
-          >
-            Tedarikçi ({cariler.filter((c) => c.type === "tedarikci").length})
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.filterBtn,
-            filter === "musteri" && styles.filterBtnActive,
-          ]}
-          onPress={() => setFilter("musteri")}
-        >
-          <Text
-            style={[
-              styles.filterText,
-              filter === "musteri" && styles.filterTextActive,
-            ]}
-          >
-            Müşteri ({cariler.filter((c) => c.type === "musteri").length})
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Liste */}
-      <ScrollView
-        style={styles.listContainer}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 0}
       >
-        {filteredCariler.length > 0 ? (
-          filteredCariler.map(renderCariCard)
-        ) : (
-          <View style={styles.emptyContainer}>
-            <Building2 size={48} color="#9ca3af" />
-            <Text style={styles.emptyTitle}>Cari bulunamadı</Text>
-            <Text style={styles.emptyText}>
-              Tedarikçi ve müşterilerinizi ekleyerek{"\n"}borç takibi yapın
-            </Text>
-            <TouchableOpacity
-              style={styles.emptyButton}
-              onPress={() => setShowAddModal(true)}
-            >
-              <Plus size={20} color="#fff" />
-              <Text style={styles.emptyButtonText}>Cari Ekle</Text>
-            </TouchableOpacity>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.title}>Cariler</Text>
+          <TouchableOpacity
+            style={styles.addButton}
+            onPress={() => setShowAddModal(true)}
+          >
+            <Plus size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Özet Kartları */}
+        {(toplamTedarikciBorc > 0 || toplamMusteriAlacak > 0) && (
+          <View style={styles.summaryRow}>
+            {toplamTedarikciBorc > 0 && (
+              <View
+                style={[styles.summaryCard, { borderLeftColor: "#ef4444" }]}
+              >
+                <Text style={styles.summaryLabel}>Tedarikçi Borcu</Text>
+                <Text style={[styles.summaryAmount, { color: "#ef4444" }]}>
+                  {formatCurrency(toplamTedarikciBorc)}
+                </Text>
+              </View>
+            )}
+            {toplamMusteriAlacak > 0 && (
+              <View
+                style={[styles.summaryCard, { borderLeftColor: "#10b981" }]}
+              >
+                <Text style={styles.summaryLabel}>Müşteri Alacağı</Text>
+                <Text style={[styles.summaryAmount, { color: "#10b981" }]}>
+                  {formatCurrency(toplamMusteriAlacak)}
+                </Text>
+              </View>
+            )}
           </View>
         )}
-        <View style={{ height: 30 }} />
-      </ScrollView>
+
+        {/* Filtre */}
+        <View style={styles.filterContainer}>
+          <TouchableOpacity
+            style={[
+              styles.filterBtn,
+              filter === "all" && styles.filterBtnActive,
+            ]}
+            onPress={() => setFilter("all")}
+          >
+            <Text
+              style={[
+                styles.filterText,
+                filter === "all" && styles.filterTextActive,
+              ]}
+            >
+              Tümü ({cariler.length})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterBtn,
+              filter === "tedarikci" && styles.filterBtnActive,
+            ]}
+            onPress={() => setFilter("tedarikci")}
+          >
+            <Text
+              style={[
+                styles.filterText,
+                filter === "tedarikci" && styles.filterTextActive,
+              ]}
+            >
+              Tedarikçi ({cariler.filter((c) => c.type === "tedarikci").length})
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[
+              styles.filterBtn,
+              filter === "musteri" && styles.filterBtnActive,
+            ]}
+            onPress={() => setFilter("musteri")}
+          >
+            <Text
+              style={[
+                styles.filterText,
+                filter === "musteri" && styles.filterTextActive,
+              ]}
+            >
+              Müşteri ({cariler.filter((c) => c.type === "musteri").length})
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Liste */}
+        <ScrollView
+          style={styles.listContainer}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          }
+        >
+          {filteredCariler.length > 0 ? (
+            filteredCariler.map(renderCariCard)
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Building2 size={48} color="#9ca3af" />
+              <Text style={styles.emptyTitle}>Cari bulunamadı</Text>
+              <Text style={styles.emptyText}>
+                Tedarikçi ve müşterilerinizi ekleyerek{"\n"}borç takibi yapın
+              </Text>
+              <TouchableOpacity
+                style={styles.emptyButton}
+                onPress={() => setShowAddModal(true)}
+              >
+                <Plus size={20} color="#fff" />
+                <Text style={styles.emptyButtonText}>Cari Ekle</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+          <View style={{ height: 30 }} />
+        </ScrollView>
+      </KeyboardAvoidingView>
 
       {/* Modaller */}
       <AddCariModal
@@ -700,6 +718,364 @@ export default function CariScreen() {
         }}
         cari={selectedCari}
       />
+
+      {/* Kategori Seçim Modal */}
+      <Modal
+        visible={showKategoriModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => setShowKategoriModal(false)}
+      >
+        <SafeAreaView style={styles.kategoriModalContainer}>
+          <View style={styles.kategoriModalHeader}>
+            <Text style={styles.kategoriModalTitle}>Kategori Seç</Text>
+            <TouchableOpacity
+              style={styles.kategoriModalCloseBtn}
+              onPress={() => setShowKategoriModal(false)}
+            >
+              <X size={24} color="#374151" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Yeni Kategori Ekleme Butonu veya Formu */}
+          {!showAddKategori ? (
+            <TouchableOpacity
+              style={styles.addKategoriBtn}
+              onPress={() => setShowAddKategori(true)}
+            >
+              <PlusCircle size={20} color="#3b82f6" />
+              <Text style={styles.addKategoriBtnText}>Yeni Kategori Ekle</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.addKategoriForm}>
+              <View style={styles.addKategoriHeader}>
+                <Text style={styles.addKategoriTitle}>Yeni Kategori</Text>
+                <TouchableOpacity
+                  onPress={() => {
+                    setShowAddKategori(false);
+                    setNewKategoriName("");
+                    setNewKategoriParentId(null);
+                  }}
+                >
+                  <X size={20} color="#6b7280" />
+                </TouchableOpacity>
+              </View>
+
+              <TextInput
+                style={styles.addKategoriInput}
+                placeholder="Kategori adı"
+                placeholderTextColor="#9ca3af"
+                value={newKategoriName}
+                onChangeText={setNewKategoriName}
+                autoFocus
+              />
+
+              {/* Ana Kategori Seçimi */}
+              <Text style={styles.addKategoriLabel}>
+                Üst Kategori (Opsiyonel)
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.parentKategoriScroll}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.parentKategoriChip,
+                    newKategoriParentId === null &&
+                      styles.parentKategoriChipActive,
+                  ]}
+                  onPress={() => setNewKategoriParentId(null)}
+                >
+                  <Text
+                    style={[
+                      styles.parentKategoriChipText,
+                      newKategoriParentId === null &&
+                        styles.parentKategoriChipTextActive,
+                    ]}
+                  >
+                    Ana Kategori
+                  </Text>
+                </TouchableOpacity>
+                {kategoriler
+                  .filter((k) => k.type === "gider" && !k.parent_id)
+                  .map((kat) => (
+                    <TouchableOpacity
+                      key={kat.id}
+                      style={[
+                        styles.parentKategoriChip,
+                        newKategoriParentId === kat.id &&
+                          styles.parentKategoriChipActive,
+                      ]}
+                      onPress={() => setNewKategoriParentId(kat.id)}
+                    >
+                      <Text
+                        style={[
+                          styles.parentKategoriChipText,
+                          newKategoriParentId === kat.id &&
+                            styles.parentKategoriChipTextActive,
+                        ]}
+                      >
+                        {kat.name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+              </ScrollView>
+
+              <TouchableOpacity
+                style={[
+                  styles.addKategoriSaveBtn,
+                  addingKategori && styles.addKategoriSaveBtnDisabled,
+                ]}
+                onPress={handleAddKategori}
+                disabled={addingKategori}
+              >
+                <Text style={styles.addKategoriSaveText}>
+                  {addingKategori ? "Ekleniyor..." : "Kategori Ekle"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Arama */}
+          <View style={styles.kategoriSearchContainer}>
+            <Search size={20} color="#9ca3af" />
+            <TextInput
+              style={styles.kategoriSearchInput}
+              placeholder="Kategori ara..."
+              placeholderTextColor="#9ca3af"
+              value={kategoriSearch}
+              onChangeText={setKategoriSearch}
+            />
+          </View>
+
+          {/* Kategori Listesi - Hiyerarşik */}
+          <ScrollView
+            style={styles.kategoriScrollView}
+            contentContainerStyle={styles.kategoriListContent}
+          >
+            {/* Kategorisiz seçeneği */}
+            <TouchableOpacity
+              style={[
+                styles.kategoriModalItem,
+                formKategoriId === "" && styles.kategoriModalItemActive,
+              ]}
+              onPress={() => {
+                setFormKategoriId("");
+                setShowKategoriModal(false);
+              }}
+            >
+              <Text
+                style={[
+                  styles.kategoriModalItemText,
+                  formKategoriId === "" && styles.kategoriModalItemTextActive,
+                ]}
+              >
+                Kategorisiz
+              </Text>
+              {formKategoriId === "" && <Check size={20} color="#10b981" />}
+            </TouchableOpacity>
+
+            <View style={styles.kategoriSeparator} />
+
+            {/* Sadece GİDER kategorilerini göster (alış için) */}
+            {kategoriler
+              .filter((k) => k.type === "gider" && !k.parent_id) // Ana kategoriler
+              .filter(
+                (k) =>
+                  kategoriSearch === "" ||
+                  k.name.toLowerCase().includes(kategoriSearch.toLowerCase()) ||
+                  kategoriler.some(
+                    (sub) =>
+                      sub.parent_id === k.id &&
+                      sub.name
+                        .toLowerCase()
+                        .includes(kategoriSearch.toLowerCase())
+                  )
+              )
+              .map((anaKategori) => {
+                const altKategoriler = kategoriler
+                  .filter((k) => k.parent_id === anaKategori.id)
+                  .filter(
+                    (k) =>
+                      kategoriSearch === "" ||
+                      k.name
+                        .toLowerCase()
+                        .includes(kategoriSearch.toLowerCase())
+                  );
+
+                return (
+                  <View key={anaKategori.id} style={styles.kategoriGroup}>
+                    {/* Ana Kategori Başlığı */}
+                    <TouchableOpacity
+                      style={[
+                        styles.kategoriAnaBaslik,
+                        formKategoriId === anaKategori.id &&
+                          styles.kategoriModalItemActive,
+                      ]}
+                      onPress={() => {
+                        setFormKategoriId(anaKategori.id);
+                        setShowKategoriModal(false);
+                      }}
+                    >
+                      <Text style={styles.kategoriAnaBaslikText}>
+                        {anaKategori.name}
+                      </Text>
+                      {formKategoriId === anaKategori.id && (
+                        <Check size={20} color="#10b981" />
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Alt Kategoriler */}
+                    {altKategoriler.map((altKategori) => (
+                      <TouchableOpacity
+                        key={altKategori.id}
+                        style={[
+                          styles.kategoriAltItem,
+                          formKategoriId === altKategori.id &&
+                            styles.kategoriModalItemActive,
+                        ]}
+                        onPress={() => {
+                          setFormKategoriId(altKategori.id);
+                          setShowKategoriModal(false);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.kategoriAltItemText,
+                            formKategoriId === altKategori.id &&
+                              styles.kategoriModalItemTextActive,
+                          ]}
+                        >
+                          {altKategori.name}
+                        </Text>
+                        {formKategoriId === altKategori.id && (
+                          <Check size={20} color="#10b981" />
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                );
+              })}
+
+            {/* Alt kategorisi olmayan gider kategorileri */}
+            {kategoriler
+              .filter((k) => k.type === "gider" && !k.parent_id)
+              .filter(
+                (k) =>
+                  kategoriler.filter((sub) => sub.parent_id === k.id).length ===
+                  0
+              ).length === 0 &&
+              kategoriler.filter((k) => k.type === "gider").length === 0 && (
+                <View style={styles.emptyKategori}>
+                  <Text style={styles.emptyKategoriText}>
+                    Henüz gider kategorisi eklenmemiş
+                  </Text>
+                </View>
+              )}
+          </ScrollView>
+
+          {/* Yeni Kategori Ekleme Formu */}
+          {showAddKategori ? (
+            <View style={styles.addKategoriForm}>
+              <Text style={styles.addKategoriTitle}>Yeni Kategori Ekle</Text>
+
+              {/* Kategori Adı */}
+              <TextInput
+                style={styles.addKategoriInput}
+                placeholder="Kategori adı"
+                placeholderTextColor="#9ca3af"
+                value={newKategoriName}
+                onChangeText={setNewKategoriName}
+                autoFocus
+              />
+
+              {/* Ana Kategori Seçimi (Opsiyonel) */}
+              <View style={styles.parentSelectContainer}>
+                <Text style={styles.parentSelectLabel}>
+                  Ana Kategori (Opsiyonel)
+                </Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                  <TouchableOpacity
+                    style={[
+                      styles.parentChip,
+                      newKategoriParentId === null && styles.parentChipActive,
+                    ]}
+                    onPress={() => setNewKategoriParentId(null)}
+                  >
+                    <Text
+                      style={[
+                        styles.parentChipText,
+                        newKategoriParentId === null &&
+                          styles.parentChipTextActive,
+                      ]}
+                    >
+                      Ana Kategori
+                    </Text>
+                  </TouchableOpacity>
+                  {kategoriler
+                    .filter((k) => k.type === "gider" && !k.parent_id)
+                    .map((k) => (
+                      <TouchableOpacity
+                        key={k.id}
+                        style={[
+                          styles.parentChip,
+                          newKategoriParentId === k.id &&
+                            styles.parentChipActive,
+                        ]}
+                        onPress={() => setNewKategoriParentId(k.id)}
+                      >
+                        <Text
+                          style={[
+                            styles.parentChipText,
+                            newKategoriParentId === k.id &&
+                              styles.parentChipTextActive,
+                          ]}
+                        >
+                          {k.name}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                </ScrollView>
+              </View>
+
+              {/* Butonlar */}
+              <View style={styles.addKategoriBtns}>
+                <TouchableOpacity
+                  style={styles.addKategoriCancelBtn}
+                  onPress={() => {
+                    setShowAddKategori(false);
+                    setNewKategoriName("");
+                    setNewKategoriParentId(null);
+                  }}
+                >
+                  <Text style={styles.addKategoriCancelText}>İptal</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.addKategoriSaveBtn,
+                    addingKategori && styles.addKategoriSaveBtnDisabled,
+                  ]}
+                  onPress={handleAddKategori}
+                  disabled={addingKategori}
+                >
+                  <Text style={styles.addKategoriSaveText}>
+                    {addingKategori ? "Ekleniyor..." : "Ekle"}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={styles.addKategoriBtn}
+              onPress={() => setShowAddKategori(true)}
+            >
+              <Plus size={20} color="#3b82f6" />
+              <Text style={styles.addKategoriBtnText}>Yeni Kategori Ekle</Text>
+            </TouchableOpacity>
+          )}
+        </SafeAreaView>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -1048,5 +1424,280 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: "600",
     color: "#fff",
+  },
+  // Kategori Seçim Butonu
+  kategoriSelectBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    marginBottom: 10,
+  },
+  kategoriSelectText: {
+    fontSize: 15,
+    color: "#111827",
+  },
+  kategoriSelectPlaceholder: {
+    color: "#9ca3af",
+  },
+  // Kategori Modal
+  kategoriModalContainer: {
+    flex: 1,
+    backgroundColor: "#fff",
+  },
+  kategoriModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  kategoriModalTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  kategoriModalCloseBtn: {
+    padding: 4,
+  },
+  kategoriSearchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
+    marginHorizontal: 16,
+    marginVertical: 12,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    gap: 10,
+  },
+  kategoriSearchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: "#111827",
+  },
+  kategoriListContent: {
+    paddingHorizontal: 16,
+    paddingBottom: 30,
+  },
+  kategoriModalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+  },
+  kategoriModalItemActive: {
+    backgroundColor: "#f0fdf4",
+    marginHorizontal: -4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  kategoriModalItemText: {
+    fontSize: 16,
+    color: "#374151",
+  },
+  kategoriModalItemTextActive: {
+    color: "#10b981",
+    fontWeight: "600",
+  },
+  kategoriSeparator: {
+    height: 1,
+    backgroundColor: "#f3f4f6",
+    marginVertical: 8,
+  },
+  kategoriScrollView: {
+    flex: 1,
+  },
+  kategoriGroup: {
+    marginBottom: 16,
+  },
+  kategoriAnaBaslik: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  kategoriAnaBaslikText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#374151",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  kategoriAltItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingLeft: 20,
+    paddingRight: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
+  },
+  kategoriAltItemText: {
+    fontSize: 15,
+    color: "#4b5563",
+  },
+  emptyKategori: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  emptyKategoriText: {
+    fontSize: 14,
+    color: "#9ca3af",
+  },
+  // Yeni Kategori Ekleme Stilleri
+  addKategoriBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginHorizontal: 16,
+    marginVertical: 12,
+    paddingVertical: 12,
+    backgroundColor: "#eff6ff",
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#3b82f6",
+    borderStyle: "dashed",
+  },
+  addKategoriBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#3b82f6",
+  },
+  addKategoriForm: {
+    marginHorizontal: 16,
+    marginVertical: 12,
+    padding: 16,
+    backgroundColor: "#f9fafb",
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  addKategoriHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  addKategoriTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 12,
+  },
+  addKategoriInput: {
+    backgroundColor: "#fff",
+    borderRadius: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: "#111827",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+    marginBottom: 12,
+  },
+  addKategoriLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#6b7280",
+    marginBottom: 8,
+  },
+  parentKategoriScroll: {
+    marginBottom: 12,
+  },
+  parentKategoriChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  parentKategoriChipActive: {
+    backgroundColor: "#3b82f6",
+    borderColor: "#3b82f6",
+  },
+  parentKategoriChipText: {
+    fontSize: 13,
+    color: "#4b5563",
+  },
+  parentKategoriChipTextActive: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  addKategoriSaveBtn: {
+    flex: 1,
+    backgroundColor: "#10b981",
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  addKategoriSaveBtnDisabled: {
+    backgroundColor: "#9ca3af",
+  },
+  addKategoriSaveText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  addKategoriCancelBtn: {
+    flex: 1,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 8,
+    paddingVertical: 12,
+    alignItems: "center",
+  },
+  addKategoriCancelText: {
+    color: "#6b7280",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  addKategoriBtns: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 4,
+  },
+  parentSelectContainer: {
+    marginBottom: 12,
+  },
+  parentSelectLabel: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#6b7280",
+    marginBottom: 8,
+  },
+  parentChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: "#fff",
+    borderRadius: 20,
+    marginRight: 8,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  parentChipActive: {
+    backgroundColor: "#3b82f6",
+    borderColor: "#3b82f6",
+  },
+  parentChipText: {
+    fontSize: 13,
+    color: "#4b5563",
+  },
+  parentChipTextActive: {
+    color: "#fff",
+    fontWeight: "600",
   },
 });

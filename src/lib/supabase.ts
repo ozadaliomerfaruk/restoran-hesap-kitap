@@ -1,37 +1,36 @@
-import { createClient } from '@supabase/supabase-js';
-import * as SecureStore from 'expo-secure-store';
+import { createClient } from "@supabase/supabase-js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || "";
 
-// SecureStore adapter for Supabase auth
-const ExpoSecureStoreAdapter = {
+const AsyncStorageAdapter = {
   getItem: async (key: string): Promise<string | null> => {
     try {
-      return await SecureStore.getItemAsync(key);
+      return await AsyncStorage.getItem(key);
     } catch {
       return null;
     }
   },
   setItem: async (key: string, value: string): Promise<void> => {
     try {
-      await SecureStore.setItemAsync(key, value);
+      await AsyncStorage.setItem(key, value);
     } catch {
-      // Handle error silently
+      // silent
     }
   },
   removeItem: async (key: string): Promise<void> => {
     try {
-      await SecureStore.deleteItemAsync(key);
+      await AsyncStorage.removeItem(key);
     } catch {
-      // Handle error silently
+      // silent
     }
   },
 };
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
-    storage: ExpoSecureStoreAdapter,
+    storage: AsyncStorageAdapter,
     autoRefreshToken: true,
     persistSession: true,
     detectSessionInUrl: false,

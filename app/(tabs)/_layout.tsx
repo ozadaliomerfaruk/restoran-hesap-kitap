@@ -120,6 +120,18 @@ export default function TabLayout() {
           href: null,
         }}
       />
+      <Tabs.Screen
+        name="arsiv"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="kasadetay"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

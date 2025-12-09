@@ -11,8 +11,10 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import { X } from "lucide-react-native";
+import { X, CalendarDays } from "lucide-react-native";
 import { useStore } from "../store/useStore";
+import { supabase } from "../lib/supabase";
+import DatePickerField from "./DatePickerField";
 
 interface AddPersonelModalProps {
   visible: boolean;
@@ -23,7 +25,7 @@ export default function AddPersonelModal({
   visible,
   onClose,
 }: AddPersonelModalProps) {
-  const { addPersonel } = useStore();
+  const { addPersonel, profile, fetchIzinler } = useStore();
   const [loading, setLoading] = useState(false);
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -32,6 +34,7 @@ export default function AddPersonelModal({
   const [startDate, setStartDate] = useState(
     new Date().toISOString().split("T")[0]
   );
+  const [initialLeaveDays, setInitialLeaveDays] = useState("");
 
   const resetForm = () => {
     setName("");
@@ -39,6 +42,7 @@ export default function AddPersonelModal({
     setPosition("");
     setSalary("");
     setStartDate(new Date().toISOString().split("T")[0]);
+    setInitialLeaveDays("");
   };
 
   const handleSubmit = async () => {
@@ -57,8 +61,12 @@ export default function AddPersonelModal({
       return;
     }
 
+    const leaveDays = initialLeaveDays ? parseInt(initialLeaveDays) : 0;
+
     setLoading(true);
-    const { error } = await addPersonel({
+
+    // Personeli ekle
+    const { data: personelData, error } = await addPersonel({
       name: name.trim(),
       phone: phone.trim() || undefined,
       position: position.trim(),
@@ -66,7 +74,26 @@ export default function AddPersonelModal({
       start_date: startDate,
       is_archived: false,
       restaurant_id: "",
+      balance: 0,
+      include_in_reports: true,
+      annual_leave_days: 0, // İzinler tablosundan hesaplanacak
+      used_leave_days: 0,
     });
+
+    // Geçmişten gelen izin varsa izinler tablosuna ekle
+    if (!error && leaveDays > 0 && personelData) {
+      await supabase.from("izinler").insert({
+        restaurant_id: profile?.restaurant_id,
+        personel_id: personelData.id,
+        type: "yillik",
+        start_date: startDate,
+        end_date: startDate,
+        days: leaveDays, // Pozitif = hak
+        description: "Geçmişten gelen izin hakkı",
+      });
+      fetchIzinler();
+    }
+
     setLoading(false);
 
     if (error) {
@@ -145,14 +172,33 @@ export default function AddPersonelModal({
             />
           </View>
 
-          <Text style={styles.label}>İşe Başlama Tarihi</Text>
-          <TextInput
-            style={styles.input}
+          <DatePickerField
             value={startDate}
-            onChangeText={setStartDate}
-            placeholder="YYYY-MM-DD"
-            placeholderTextColor="#9ca3af"
+            onChange={setStartDate}
+            label="İşe Başlama Tarihi"
           />
+
+          {/* Geçmişten Gelen İzin */}
+          <View style={styles.initialLeaveContainer}>
+            <View style={styles.initialLeaveHeader}>
+              <CalendarDays size={20} color="#8b5cf6" />
+              <Text style={styles.initialLeaveTitle}>Geçmişten Gelen İzin</Text>
+            </View>
+            <Text style={styles.initialLeaveDesc}>
+              Personelin önceki dönemlerden kalan izin hakkı varsa girin
+            </Text>
+            <View style={styles.initialLeaveInputRow}>
+              <TextInput
+                style={styles.initialLeaveInput}
+                value={initialLeaveDays}
+                onChangeText={setInitialLeaveDays}
+                placeholder="0"
+                placeholderTextColor="#9ca3af"
+                keyboardType="number-pad"
+              />
+              <Text style={styles.initialLeaveUnit}>gün</Text>
+            </View>
+          </View>
 
           <View style={styles.bottomPadding} />
         </ScrollView>
@@ -195,14 +241,14 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: "#fff",
     fontWeight: "600",
-    fontSize: 19,
+    fontSize: 16,
   },
   content: {
     flex: 1,
     padding: 16,
   },
   label: {
-    fontSize: 19,
+    fontSize: 15,
     fontWeight: "500",
     color: "#374151",
     marginBottom: 8,
@@ -213,7 +259,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 19,
+    fontSize: 16,
     color: "#111827",
   },
   amountContainer: {
@@ -235,6 +281,51 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
     paddingVertical: 14,
+  },
+  // Geçmişten Gelen İzin
+  initialLeaveContainer: {
+    marginTop: 24,
+    backgroundColor: "#f5f3ff",
+    borderRadius: 12,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "#ddd6fe",
+  },
+  initialLeaveHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  initialLeaveTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#7c3aed",
+  },
+  initialLeaveDesc: {
+    fontSize: 13,
+    color: "#6b7280",
+    marginBottom: 12,
+  },
+  initialLeaveInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    gap: 8,
+  },
+  initialLeaveInput: {
+    flex: 1,
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#111827",
+    paddingVertical: 12,
+  },
+  initialLeaveUnit: {
+    fontSize: 16,
+    color: "#6b7280",
+    fontWeight: "500",
   },
   bottomPadding: {
     height: 40,

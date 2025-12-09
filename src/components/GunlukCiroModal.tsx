@@ -22,6 +22,7 @@ import {
 } from "lucide-react-native";
 import { useStore } from "../store/useStore";
 import { Kasa, Kategori } from "../types";
+import DatePickerField from "./DatePickerField";
 
 interface GunlukCiroModalProps {
   visible: boolean;
@@ -283,14 +284,7 @@ export default function GunlukCiroModal({
         <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
           {/* Tarih */}
           <View style={styles.dateContainer}>
-            <Text style={styles.dateLabel}>Tarih</Text>
-            <TextInput
-              style={styles.dateInput}
-              value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="#9ca3af"
-            />
+            <DatePickerField value={date} onChange={setDate} label="Tarih" />
           </View>
 
           {/* Toplam Özet */}

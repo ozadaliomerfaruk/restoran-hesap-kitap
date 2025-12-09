@@ -30,6 +30,9 @@ export default function AddCariModal({ visible, onClose }: AddCariModalProps) {
   const [address, setAddress] = useState("");
   const [taxNumber, setTaxNumber] = useState("");
   const [initialBalance, setInitialBalance] = useState("");
+  const [debtType, setDebtType] = useState<
+    "none" | "bpisBorclu" | "karsiTarafBorclu"
+  >("none");
 
   const resetForm = () => {
     setName("");
@@ -39,12 +42,31 @@ export default function AddCariModal({ visible, onClose }: AddCariModalProps) {
     setAddress("");
     setTaxNumber("");
     setInitialBalance("");
+    setDebtType("none");
   };
 
   const handleSubmit = async () => {
     if (!name.trim()) {
       Alert.alert("Hata", "Cari adı zorunludur");
       return;
+    }
+
+    // Bakiye hesaplama
+    let calculatedBalance = 0;
+    const amount = parseFloat(initialBalance) || 0;
+
+    if (amount > 0 && debtType !== "none") {
+      if (type === "tedarikci") {
+        // Tedarikçi için:
+        // bpisBorclu = pozitif bakiye (biz borçluyuz)
+        // karsiTarafBorclu = negatif bakiye (onlar borçlu)
+        calculatedBalance = debtType === "bpisBorclu" ? amount : -amount;
+      } else {
+        // Müşteri için:
+        // bpisBorclu = negatif bakiye (biz borçluyuz)
+        // karsiTarafBorclu = pozitif bakiye (onlar borçlu)
+        calculatedBalance = debtType === "bpisBorclu" ? -amount : amount;
+      }
     }
 
     setLoading(true);
@@ -55,7 +77,7 @@ export default function AddCariModal({ visible, onClose }: AddCariModalProps) {
       email: email.trim() || undefined,
       address: address.trim() || undefined,
       tax_number: taxNumber.trim() || undefined,
-      initial_balance: parseFloat(initialBalance) || 0,
+      initial_balance: calculatedBalance,
       include_in_reports: true,
       is_archived: false,
       restaurant_id: "",
@@ -200,19 +222,78 @@ export default function AddCariModal({ visible, onClose }: AddCariModalProps) {
 
           {/* Başlangıç Bakiyesi */}
           <Text style={styles.label}>Başlangıç Bakiyesi</Text>
-          <TextInput
-            style={styles.input}
-            value={initialBalance}
-            onChangeText={setInitialBalance}
-            placeholder="0.00"
-            placeholderTextColor="#9ca3af"
-            keyboardType="decimal-pad"
-          />
-          <Text style={styles.hint}>
-            {type === "tedarikci"
-              ? "Pozitif: Borcunuz var, Negatif: Alacağınız var"
-              : "Pozitif: Alacağınız var, Negatif: Borcunuz var"}
-          </Text>
+
+          {/* Borç Tipi Seçimi */}
+          <View style={styles.debtTypeButtons}>
+            <TouchableOpacity
+              style={[
+                styles.debtTypeButton,
+                debtType === "none" && styles.debtTypeButtonActive,
+              ]}
+              onPress={() => {
+                setDebtType("none");
+                setInitialBalance("");
+              }}
+            >
+              <Text
+                style={[
+                  styles.debtTypeButtonText,
+                  debtType === "none" && styles.debtTypeButtonTextActive,
+                ]}
+              >
+                Borç Yok
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.debtTypeButton,
+                debtType === "bpisBorclu" && styles.debtTypeButtonActiveBiz,
+              ]}
+              onPress={() => setDebtType("bpisBorclu")}
+            >
+              <Text
+                style={[
+                  styles.debtTypeButtonText,
+                  debtType === "bpisBorclu" && styles.debtTypeButtonTextActive,
+                ]}
+              >
+                Biz Borçluyuz
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.debtTypeButton,
+                debtType === "karsiTarafBorclu" &&
+                  styles.debtTypeButtonActiveKarsi,
+              ]}
+              onPress={() => setDebtType("karsiTarafBorclu")}
+            >
+              <Text
+                style={[
+                  styles.debtTypeButtonText,
+                  debtType === "karsiTarafBorclu" &&
+                    styles.debtTypeButtonTextActive,
+                ]}
+              >
+                {type === "tedarikci" ? "Tedarikçi Borçlu" : "Müşteri Borçlu"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Tutar girişi - sadece borç seçiliyse göster */}
+          {debtType !== "none" && (
+            <View style={styles.amountContainer}>
+              <Text style={styles.currencySymbol}>₺</Text>
+              <TextInput
+                style={styles.amountInput}
+                value={initialBalance}
+                onChangeText={setInitialBalance}
+                placeholder="0"
+                placeholderTextColor="#9ca3af"
+                keyboardType="decimal-pad"
+              />
+            </View>
+          )}
 
           <View style={styles.bottomPadding} />
         </ScrollView>
@@ -312,6 +393,64 @@ const styles = StyleSheet.create({
   },
   typeButtonTextActive: {
     color: "#fff",
+  },
+  debtTypeButtons: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 12,
+  },
+  debtTypeButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  debtTypeButtonActive: {
+    backgroundColor: "#6b7280",
+    borderColor: "#6b7280",
+  },
+  debtTypeButtonActiveBiz: {
+    backgroundColor: "#ef4444",
+    borderColor: "#ef4444",
+  },
+  debtTypeButtonActiveKarsi: {
+    backgroundColor: "#10b981",
+    borderColor: "#10b981",
+  },
+  debtTypeButtonText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6b7280",
+    textAlign: "center",
+  },
+  debtTypeButtonTextActive: {
+    color: "#fff",
+  },
+  amountContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    marginTop: 8,
+  },
+  currencySymbol: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#6b7280",
+    marginRight: 8,
+  },
+  amountInput: {
+    flex: 1,
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111827",
+    paddingVertical: 14,
   },
   bottomPadding: {
     height: 40,

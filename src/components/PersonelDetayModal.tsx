@@ -11,6 +11,7 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import {
   ArrowLeft,
   Calendar,
@@ -19,9 +20,17 @@ import {
   Plus,
   Edit3,
   Trash2,
+  MoreVertical,
+  X,
+  Archive,
+  EyeOff,
+  Eye,
+  Wallet,
+  CalendarDays,
 } from "lucide-react-native";
 import { useStore } from "../store/useStore";
-import { Personel, PersonelIslem } from "../types";
+import { Personel, PersonelIslem, Izin } from "../types";
+import DatePickerField from "./DatePickerField";
 import { supabase } from "../lib/supabase";
 
 interface PersonelDetayModalProps {
@@ -54,7 +63,14 @@ export default function PersonelDetayModal({
     addPersonelIslem,
     fetchPersoneller,
     personeller,
+    updatePersonel,
+    deletePersonel,
+    izinler,
+    fetchIzinler,
   } = useStore();
+
+  // Görünüm sekmesi: "hesap" veya "izin"
+  const [viewTab, setViewTab] = useState<"hesap" | "izin">("hesap");
 
   const [activeTab, setActiveTab] = useState<IslemTab>("gider");
   const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
@@ -70,6 +86,11 @@ export default function PersonelDetayModal({
   const [editAmount, setEditAmount] = useState("");
   const [editDescription, setEditDescription] = useState("");
 
+  // Hamburger menü state'leri
+  const [showMenu, setShowMenu] = useState(false);
+  const [showNameEditModal, setShowNameEditModal] = useState(false);
+  const [editName, setEditName] = useState("");
+
   const currentPersonel =
     personeller.find((p) => p.id === initialPersonel?.id) || initialPersonel;
 
@@ -77,12 +98,29 @@ export default function PersonelDetayModal({
     .filter((i) => i.personel_id === currentPersonel?.id)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
+  const personelIzinleri = izinler
+    .filter((i) => i.personel_id === currentPersonel?.id)
+    .sort(
+      (a, b) =>
+        new Date(b.start_date).getTime() - new Date(a.start_date).getTime()
+    );
+
+  const izinTypeLabels: Record<string, string> = {
+    yillik: "Yıllık İzin",
+    hastalik: "Hastalık",
+    mazeret: "Mazeret",
+    ucretsiz: "Ücretsiz",
+  };
+
   useEffect(() => {
     if (visible && initialPersonel) {
       fetchPersonelIslemler();
       fetchKasalar();
       fetchPersoneller();
+      fetchIzinler();
       resetForm();
+      setEditName(initialPersonel.name);
+      setViewTab("hesap");
     }
   }, [visible, initialPersonel]);
 
@@ -300,6 +338,155 @@ export default function PersonelDetayModal({
     );
   };
 
+  // İzin silme fonksiyonu
+  const handleDeleteIzin = async (izin: Izin) => {
+    Alert.alert(
+      "İzni Sil",
+      `${izin.days} günlük ${
+        izinTypeLabels[izin.type]
+      } kaydını silmek istediğinize emin misiniz?`,
+      [
+        { text: "İptal", style: "cancel" },
+        {
+          text: "Sil",
+          style: "destructive",
+          onPress: async () => {
+            setLoading(true);
+
+            // İzin günlerini geri al
+            if (currentPersonel && izin.days !== 0) {
+              // days negatifse kullanılmış izin, pozitifse eklenen hak
+              // Silince tersini yapıyoruz
+              const usedChange = izin.days < 0 ? izin.days : 0; // Kullanılan izin silinirse geri ekle
+              const annualChange = izin.days > 0 ? -izin.days : 0; // Eklenen hak silinirse çıkar
+
+              await supabase
+                .from("personel")
+                .update({
+                  used_leave_days: currentPersonel.used_leave_days + usedChange,
+                  annual_leave_days:
+                    currentPersonel.annual_leave_days + annualChange,
+                })
+                .eq("id", currentPersonel.id);
+            }
+
+            const { error } = await supabase
+              .from("izinler")
+              .delete()
+              .eq("id", izin.id);
+
+            setLoading(false);
+            if (error) {
+              Alert.alert("Hata", "İzin silinirken bir hata oluştu");
+            } else {
+              fetchIzinler();
+              fetchPersoneller();
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // ========== HAMBURGER MENÜ FONKSİYONLARI ==========
+
+  // İsim Düzenleme
+  const handleEditName = async () => {
+    if (!editName.trim()) {
+      Alert.alert("Hata", "İsim boş olamaz");
+      return;
+    }
+    if (!currentPersonel) return;
+
+    setLoading(true);
+    const { error } = await updatePersonel(currentPersonel.id, {
+      name: editName.trim(),
+    });
+    setLoading(false);
+
+    if (error) {
+      Alert.alert("Hata", "İsim güncellenirken bir hata oluştu");
+    } else {
+      setShowNameEditModal(false);
+      fetchPersoneller();
+    }
+  };
+
+  // Arşive Alma
+  const handleArchive = () => {
+    setShowMenu(false);
+    Alert.alert(
+      "Arşive Al",
+      `"${currentPersonel?.name}" personelini arşive almak istediğinize emin misiniz?\n\nArşivdeki personeller listelerde görünmez ama verileri korunur.`,
+      [
+        { text: "İptal", style: "cancel" },
+        {
+          text: "Arşive Al",
+          onPress: async () => {
+            if (!currentPersonel) return;
+            setLoading(true);
+            const { error } = await updatePersonel(currentPersonel.id, {
+              is_archived: true,
+            });
+            setLoading(false);
+            if (error) {
+              Alert.alert("Hata", "Arşive alınırken bir hata oluştu");
+            } else {
+              Alert.alert("Başarılı", "Personel arşive alındı");
+              onClose();
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Raporlara Dahil Etme Toggle
+  const handleToggleIncludeInReports = async () => {
+    if (!currentPersonel) return;
+    setShowMenu(false);
+    setLoading(true);
+    const { error } = await updatePersonel(currentPersonel.id, {
+      include_in_reports: !currentPersonel.include_in_reports,
+    });
+    setLoading(false);
+    if (error) {
+      Alert.alert("Hata", "Ayar güncellenirken bir hata oluştu");
+    } else {
+      fetchPersoneller();
+    }
+  };
+
+  // Personel Silme
+  const handleDeletePersonel = () => {
+    setShowMenu(false);
+    Alert.alert(
+      "Personeli Sil",
+      `"${currentPersonel?.name}" personelini silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz ve tüm işlem geçmişi silinecektir.`,
+      [
+        { text: "İptal", style: "cancel" },
+        {
+          text: "Sil",
+          style: "destructive",
+          onPress: async () => {
+            if (!currentPersonel) return;
+            setLoading(true);
+            const { error } = await deletePersonel(currentPersonel.id);
+            setLoading(false);
+            if (error) {
+              Alert.alert("Hata", "Personel silinirken bir hata oluştu");
+            } else {
+              Alert.alert("Başarılı", "Personel silindi");
+              onClose();
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // ========== İŞLEM GÖSTERİM FONKSİYONLARI ==========
+
   const getIslemTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       maas: "MAAŞ",
@@ -388,269 +575,558 @@ export default function PersonelDetayModal({
       animationType="slide"
       presentationStyle="pageSheet"
     >
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        style={styles.container}
-      >
-        <View style={styles.header}>
-          <TouchableOpacity onPress={onClose} style={styles.backButton}>
-            <ArrowLeft size={24} color="#3b82f6" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>{currentPersonel.name}</Text>
-          <View style={{ width: 40 }} />
-        </View>
-
-        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-          <View
-            style={[styles.balanceCard, { borderLeftColor: balanceInfo.color }]}
-          >
-            <Text style={styles.balanceLabel}>Bakiye Durumu</Text>
-            <Text style={[styles.balanceAmount, { color: balanceInfo.color }]}>
-              {formatCurrency(balanceInfo.amount)}
-            </Text>
-            <Text style={[styles.balanceStatus, { color: balanceInfo.color }]}>
-              {balanceInfo.text}
-            </Text>
-          </View>
-
-          <View style={styles.historySection}>
-            <Text style={styles.historyTitle}>
-              Geçmiş İşlemler ({personelIslemleri.length})
-            </Text>
-            {personelIslemleri.length > 0 ? (
-              personelIslemleri.map(renderIslemItem)
-            ) : (
-              <Text style={styles.emptyText}>Henüz işlem yok</Text>
-            )}
-          </View>
-        </ScrollView>
-
-        <View style={styles.formContainer}>
-          <View style={styles.dateRow}>
-            <Text style={styles.dateLabel}>Tarih:</Text>
-            <TextInput
-              style={styles.dateInput}
-              value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
-            />
-            <Calendar size={20} color="#6b7280" />
-          </View>
-
-          {(activeTab === "odeme" || activeTab === "tahsilat") && (
-            <TouchableOpacity
-              style={styles.selectRow}
-              onPress={() => setShowKasaPicker(true)}
-            >
-              <Text style={styles.selectLabel}>
-                {activeTab === "odeme" ? "Kaynak hesap → " : "Hedef hesap → "}
-              </Text>
-              <Text style={styles.selectValue}>
-                {kasalar.find((k) => k.id === selectedKasa)?.name ||
-                  "Hesap seçin"}
-              </Text>
+      <SafeAreaView style={styles.container} edges={["top"]}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
+        >
+          <View style={styles.header}>
+            <TouchableOpacity onPress={onClose} style={styles.backButton}>
+              <ArrowLeft size={24} color="#3b82f6" />
             </TouchableOpacity>
+            <Text style={styles.headerTitle}>{currentPersonel.name}</Text>
+            <TouchableOpacity
+              onPress={() => setShowMenu(true)}
+              style={styles.menuButton}
+            >
+              <MoreVertical size={24} color="#374151" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Raporlara dahil değil badge */}
+          {!currentPersonel.include_in_reports && (
+            <View style={styles.excludedBadge}>
+              <EyeOff size={14} color="#f59e0b" />
+              <Text style={styles.excludedBadgeText}>
+                Raporlara dahil değil
+              </Text>
+            </View>
           )}
 
-          {activeTab === "gider" && (
+          {/* Hesap / İzin Sekmeleri */}
+          <View style={styles.viewTabContainer}>
             <TouchableOpacity
-              style={styles.selectRow}
-              onPress={() => setShowKategoriPicker(true)}
+              style={[
+                styles.viewTab,
+                viewTab === "hesap" && styles.viewTabActive,
+              ]}
+              onPress={() => setViewTab("hesap")}
             >
-              <Text style={styles.selectLabel}>Kategori: </Text>
-              <Text style={styles.selectValue}>
-                {giderKategorileri.find((k) => k.value === selectedKategori)
-                  ?.label || "Seçin"}
-              </Text>
-              <ChevronDown size={18} color="#6b7280" />
-            </TouchableOpacity>
-          )}
-
-          <View style={styles.descRow}>
-            <TextInput
-              style={styles.descInput}
-              value={description}
-              onChangeText={setDescription}
-              placeholder="Açıklama"
-              placeholderTextColor="#9ca3af"
-            />
-            <Camera size={22} color="#9ca3af" />
-          </View>
-
-          <View style={styles.amountRow}>
-            <View style={styles.amountBox}>
-              <Text style={styles.currencySign}>₺</Text>
-              <TextInput
-                style={styles.amountInput}
-                value={amount}
-                onChangeText={setAmount}
-                placeholder="0"
-                placeholderTextColor="#9ca3af"
-                keyboardType="decimal-pad"
+              <Wallet
+                size={16}
+                color={viewTab === "hesap" ? "#fff" : "#6b7280"}
               />
-            </View>
-            <TouchableOpacity
-              style={[styles.saveBtn, loading && styles.saveBtnDisabled]}
-              onPress={handleSubmit}
-              disabled={loading}
-            >
-              <Plus size={18} color="#fff" />
-              <Text style={styles.saveBtnText}>KAYDET</Text>
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.tabBar}>
-            <TouchableOpacity
-              style={[
-                styles.tabBtn,
-                activeTab === "gider" && styles.tabBtnActive,
-              ]}
-              onPress={() => setActiveTab("gider")}
-            >
               <Text
                 style={[
-                  styles.tabText,
-                  activeTab === "gider" && styles.tabTextActive,
+                  styles.viewTabText,
+                  viewTab === "hesap" && styles.viewTabTextActive,
                 ]}
               >
-                PERSONEL{"\n"}GİDERİ
+                Hesap Hareketleri
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
-                styles.tabBtn,
-                activeTab === "odeme" && styles.tabBtnActive,
+                styles.viewTab,
+                viewTab === "izin" && styles.viewTabActiveIzin,
               ]}
-              onPress={() => setActiveTab("odeme")}
+              onPress={() => setViewTab("izin")}
             >
+              <CalendarDays
+                size={16}
+                color={viewTab === "izin" ? "#fff" : "#6b7280"}
+              />
               <Text
                 style={[
-                  styles.tabText,
-                  activeTab === "odeme" && styles.tabTextActive,
+                  styles.viewTabText,
+                  viewTab === "izin" && styles.viewTabTextActive,
                 ]}
               >
-                ÖDEME
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[
-                styles.tabBtn,
-                activeTab === "tahsilat" && styles.tabBtnActive,
-              ]}
-              onPress={() => setActiveTab("tahsilat")}
-            >
-              <Text
-                style={[
-                  styles.tabText,
-                  activeTab === "tahsilat" && styles.tabTextActive,
-                ]}
-              >
-                TAHSİLAT
+                İzin Hareketleri
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
 
-        <Modal visible={showKategoriPicker} transparent animationType="fade">
-          <TouchableOpacity
-            style={styles.pickerOverlay}
-            activeOpacity={1}
-            onPress={() => setShowKategoriPicker(false)}
-          >
-            <View style={styles.pickerModal}>
-              <Text style={styles.pickerTitle}>Kategori Seç</Text>
-              {giderKategorileri.map((kat) => (
-                <TouchableOpacity
-                  key={kat.value}
+          {/* İçerik - Hesap Hareketleri */}
+          {viewTab === "hesap" && (
+            <>
+              <ScrollView
+                style={styles.content}
+                showsVerticalScrollIndicator={false}
+              >
+                <View
                   style={[
-                    styles.pickerItem,
-                    selectedKategori === kat.value && styles.pickerItemActive,
+                    styles.balanceCard,
+                    { borderLeftColor: balanceInfo.color },
                   ]}
-                  onPress={() => {
-                    setSelectedKategori(kat.value);
-                    setShowKategoriPicker(false);
-                  }}
                 >
-                  <Text style={styles.pickerItemText}>{kat.label}</Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </TouchableOpacity>
-        </Modal>
-
-        <Modal visible={showKasaPicker} transparent animationType="fade">
-          <TouchableOpacity
-            style={styles.pickerOverlay}
-            activeOpacity={1}
-            onPress={() => setShowKasaPicker(false)}
-          >
-            <View style={styles.pickerModal}>
-              <Text style={styles.pickerTitle}>Hesap Seç</Text>
-              {nakitBankaKasalar.map((kasa) => (
-                <TouchableOpacity
-                  key={kasa.id}
-                  style={[
-                    styles.pickerItem,
-                    selectedKasa === kasa.id && styles.pickerItemActive,
-                  ]}
-                  onPress={() => {
-                    setSelectedKasa(kasa.id);
-                    setShowKasaPicker(false);
-                  }}
-                >
-                  <Text style={styles.pickerItemText}>{kasa.name}</Text>
-                  <Text style={styles.pickerItemSub}>
-                    {formatCurrency(kasa.balance)}
+                  <Text style={styles.balanceLabel}>Bakiye Durumu</Text>
+                  <Text
+                    style={[styles.balanceAmount, { color: balanceInfo.color }]}
+                  >
+                    {formatCurrency(balanceInfo.amount)}
                   </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </TouchableOpacity>
-        </Modal>
+                  <Text
+                    style={[styles.balanceStatus, { color: balanceInfo.color }]}
+                  >
+                    {balanceInfo.text}
+                  </Text>
+                </View>
 
-        <Modal visible={showEditModal} transparent animationType="fade">
-          <View style={styles.editOverlay}>
-            <View style={styles.editModal}>
-              <Text style={styles.editTitle}>İşlemi Düzenle</Text>
-              <Text style={styles.editLabel}>Tutar</Text>
-              <View style={styles.editAmountBox}>
-                <Text style={styles.editCurrency}>₺</Text>
+                <View style={styles.historySection}>
+                  <Text style={styles.historyTitle}>
+                    Geçmiş İşlemler ({personelIslemleri.length})
+                  </Text>
+                  {personelIslemleri.length > 0 ? (
+                    personelIslemleri.map(renderIslemItem)
+                  ) : (
+                    <Text style={styles.emptyText}>Henüz işlem yok</Text>
+                  )}
+                </View>
+              </ScrollView>
+
+              <View style={styles.formContainer}>
+                <DatePickerField value={date} onChange={setDate} />
+
+                {(activeTab === "odeme" || activeTab === "tahsilat") && (
+                  <TouchableOpacity
+                    style={styles.selectRow}
+                    onPress={() => setShowKasaPicker(true)}
+                  >
+                    <Text style={styles.selectLabel}>
+                      {activeTab === "odeme"
+                        ? "Kaynak hesap → "
+                        : "Hedef hesap → "}
+                    </Text>
+                    <Text style={styles.selectValue}>
+                      {kasalar.find((k) => k.id === selectedKasa)?.name ||
+                        "Hesap seçin"}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+
+                {activeTab === "gider" && (
+                  <TouchableOpacity
+                    style={styles.selectRow}
+                    onPress={() => setShowKategoriPicker(true)}
+                  >
+                    <Text style={styles.selectLabel}>Kategori: </Text>
+                    <Text style={styles.selectValue}>
+                      {giderKategorileri.find(
+                        (k) => k.value === selectedKategori
+                      )?.label || "Seçin"}
+                    </Text>
+                    <ChevronDown size={18} color="#6b7280" />
+                  </TouchableOpacity>
+                )}
+
+                <View style={styles.descRow}>
+                  <TextInput
+                    style={styles.descInput}
+                    value={description}
+                    onChangeText={setDescription}
+                    placeholder="Açıklama"
+                    placeholderTextColor="#9ca3af"
+                  />
+                  <Camera size={22} color="#9ca3af" />
+                </View>
+
+                <View style={styles.amountRow}>
+                  <View style={styles.amountBox}>
+                    <Text style={styles.currencySign}>₺</Text>
+                    <TextInput
+                      style={styles.amountInput}
+                      value={amount}
+                      onChangeText={setAmount}
+                      placeholder="0"
+                      placeholderTextColor="#9ca3af"
+                      keyboardType="decimal-pad"
+                    />
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.saveBtn, loading && styles.saveBtnDisabled]}
+                    onPress={handleSubmit}
+                    disabled={loading}
+                  >
+                    <Plus size={18} color="#fff" />
+                    <Text style={styles.saveBtnText}>KAYDET</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.tabBar}>
+                  <TouchableOpacity
+                    style={[
+                      styles.tabBtn,
+                      activeTab === "gider" && styles.tabBtnActive,
+                    ]}
+                    onPress={() => setActiveTab("gider")}
+                  >
+                    <Text
+                      style={[
+                        styles.tabText,
+                        activeTab === "gider" && styles.tabTextActive,
+                      ]}
+                    >
+                      PERSONEL{"\n"}GİDERİ
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.tabBtn,
+                      activeTab === "odeme" && styles.tabBtnActive,
+                    ]}
+                    onPress={() => setActiveTab("odeme")}
+                  >
+                    <Text
+                      style={[
+                        styles.tabText,
+                        activeTab === "odeme" && styles.tabTextActive,
+                      ]}
+                    >
+                      ÖDEME
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.tabBtn,
+                      activeTab === "tahsilat" && styles.tabBtnActive,
+                    ]}
+                    onPress={() => setActiveTab("tahsilat")}
+                  >
+                    <Text
+                      style={[
+                        styles.tabText,
+                        activeTab === "tahsilat" && styles.tabTextActive,
+                      ]}
+                    >
+                      TAHSİLAT
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </>
+          )}
+
+          {/* İçerik - İzin Hareketleri */}
+          {viewTab === "izin" && (
+            <ScrollView
+              style={styles.content}
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={{ padding: 16 }}>
+                {/* İzin Özeti - İzinler tablosundan hesapla */}
+                {(() => {
+                  const toplamHak = personelIzinleri
+                    .filter((i) => i.days > 0)
+                    .reduce((sum, i) => sum + i.days, 0);
+                  const kullanilanIzin = Math.abs(
+                    personelIzinleri
+                      .filter((i) => i.days < 0)
+                      .reduce((sum, i) => sum + i.days, 0)
+                  );
+                  const kalanIzin = toplamHak - kullanilanIzin;
+
+                  return (
+                    <View style={styles.izinSummaryCard}>
+                      <View style={styles.izinSummaryRow}>
+                        <View style={styles.izinSummaryItem}>
+                          <Text style={styles.izinSummaryValue}>
+                            {toplamHak}
+                          </Text>
+                          <Text style={styles.izinSummaryLabel}>
+                            Toplam Hak
+                          </Text>
+                        </View>
+                        <View style={styles.izinSummaryItem}>
+                          <Text
+                            style={[
+                              styles.izinSummaryValue,
+                              { color: "#ef4444" },
+                            ]}
+                          >
+                            {kullanilanIzin}
+                          </Text>
+                          <Text style={styles.izinSummaryLabel}>
+                            Kullanılan
+                          </Text>
+                        </View>
+                        <View style={styles.izinSummaryItem}>
+                          <Text
+                            style={[
+                              styles.izinSummaryValue,
+                              { color: kalanIzin >= 0 ? "#10b981" : "#ef4444" },
+                            ]}
+                          >
+                            {kalanIzin}
+                          </Text>
+                          <Text style={styles.izinSummaryLabel}>Kalan</Text>
+                        </View>
+                      </View>
+                    </View>
+                  );
+                })()}
+
+                {/* İzin Geçmişi */}
+                <Text style={styles.historyTitle}>
+                  İzin Geçmişi ({personelIzinleri.length})
+                </Text>
+                {personelIzinleri.length > 0 ? (
+                  personelIzinleri.map((izin) => (
+                    <View key={izin.id} style={styles.izinItem}>
+                      <View style={styles.izinItemLeft}>
+                        <View
+                          style={[
+                            styles.izinItemBadge,
+                            {
+                              backgroundColor:
+                                izin.days > 0 ? "#dcfce7" : "#fef3c7",
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.izinItemBadgeText,
+                              { color: izin.days > 0 ? "#10b981" : "#f59e0b" },
+                            ]}
+                          >
+                            {izin.days > 0 ? `+${izin.days}` : izin.days} gün
+                          </Text>
+                        </View>
+                        <View style={styles.izinItemInfo}>
+                          <Text style={styles.izinItemType}>
+                            {izinTypeLabels[izin.type]}
+                          </Text>
+                          <Text style={styles.izinItemDate}>
+                            {formatDate(izin.start_date)}
+                          </Text>
+                          {izin.description && (
+                            <Text style={styles.izinItemDesc} numberOfLines={1}>
+                              {izin.description}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                      <TouchableOpacity
+                        style={styles.deleteBtn}
+                        onPress={() => handleDeleteIzin(izin)}
+                      >
+                        <Trash2 size={16} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                ) : (
+                  <View style={styles.emptyIzin}>
+                    <CalendarDays size={40} color="#d1d5db" />
+                    <Text style={styles.emptyText}>Henüz izin kaydı yok</Text>
+                  </View>
+                )}
+              </View>
+            </ScrollView>
+          )}
+
+          <Modal visible={showKategoriPicker} transparent animationType="fade">
+            <TouchableOpacity
+              style={styles.pickerOverlay}
+              activeOpacity={1}
+              onPress={() => setShowKategoriPicker(false)}
+            >
+              <View style={styles.pickerModal}>
+                <Text style={styles.pickerTitle}>Kategori Seç</Text>
+                {giderKategorileri.map((kat) => (
+                  <TouchableOpacity
+                    key={kat.value}
+                    style={[
+                      styles.pickerItem,
+                      selectedKategori === kat.value && styles.pickerItemActive,
+                    ]}
+                    onPress={() => {
+                      setSelectedKategori(kat.value);
+                      setShowKategoriPicker(false);
+                    }}
+                  >
+                    <Text style={styles.pickerItemText}>{kat.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </TouchableOpacity>
+          </Modal>
+
+          <Modal visible={showKasaPicker} transparent animationType="fade">
+            <TouchableOpacity
+              style={styles.pickerOverlay}
+              activeOpacity={1}
+              onPress={() => setShowKasaPicker(false)}
+            >
+              <View style={styles.pickerModal}>
+                <Text style={styles.pickerTitle}>Hesap Seç</Text>
+                {nakitBankaKasalar.map((kasa) => (
+                  <TouchableOpacity
+                    key={kasa.id}
+                    style={[
+                      styles.pickerItem,
+                      selectedKasa === kasa.id && styles.pickerItemActive,
+                    ]}
+                    onPress={() => {
+                      setSelectedKasa(kasa.id);
+                      setShowKasaPicker(false);
+                    }}
+                  >
+                    <Text style={styles.pickerItemText}>{kasa.name}</Text>
+                    <Text style={styles.pickerItemSub}>
+                      {formatCurrency(kasa.balance)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </TouchableOpacity>
+          </Modal>
+
+          <Modal visible={showEditModal} transparent animationType="fade">
+            <View style={styles.editOverlay}>
+              <View style={styles.editModal}>
+                <Text style={styles.editTitle}>İşlemi Düzenle</Text>
+                <Text style={styles.editLabel}>Tutar</Text>
+                <View style={styles.editAmountBox}>
+                  <Text style={styles.editCurrency}>₺</Text>
+                  <TextInput
+                    style={styles.editAmountInput}
+                    value={editAmount}
+                    onChangeText={setEditAmount}
+                    keyboardType="decimal-pad"
+                    placeholder="0"
+                  />
+                </View>
+                <Text style={styles.editLabel}>Açıklama</Text>
                 <TextInput
-                  style={styles.editAmountInput}
-                  value={editAmount}
-                  onChangeText={setEditAmount}
-                  keyboardType="decimal-pad"
-                  placeholder="0"
+                  style={styles.editInput}
+                  value={editDescription}
+                  onChangeText={setEditDescription}
+                  placeholder="Açıklama"
                 />
+                <View style={styles.editBtns}>
+                  <TouchableOpacity
+                    style={styles.editCancelBtn}
+                    onPress={() => setShowEditModal(false)}
+                  >
+                    <Text style={styles.editCancelText}>İptal</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.editSaveBtn}
+                    onPress={handleUpdateIslem}
+                    disabled={loading}
+                  >
+                    <Text style={styles.editSaveText}>
+                      {loading ? "Kaydediliyor..." : "Kaydet"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-              <Text style={styles.editLabel}>Açıklama</Text>
-              <TextInput
-                style={styles.editInput}
-                value={editDescription}
-                onChangeText={setEditDescription}
-                placeholder="Açıklama"
-              />
-              <View style={styles.editBtns}>
+            </View>
+          </Modal>
+
+          {/* Hamburger Menü */}
+          <Modal visible={showMenu} transparent animationType="fade">
+            <TouchableOpacity
+              style={styles.menuOverlay}
+              activeOpacity={1}
+              onPress={() => setShowMenu(false)}
+            >
+              <View style={styles.menuContainer}>
+                <View style={styles.menuHeader}>
+                  <Text style={styles.menuTitle}>Ayarlar</Text>
+                  <TouchableOpacity onPress={() => setShowMenu(false)}>
+                    <X size={24} color="#374151" />
+                  </TouchableOpacity>
+                </View>
+
                 <TouchableOpacity
-                  style={styles.editCancelBtn}
-                  onPress={() => setShowEditModal(false)}
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setShowMenu(false);
+                    setShowNameEditModal(true);
+                  }}
                 >
-                  <Text style={styles.editCancelText}>İptal</Text>
+                  <Edit3 size={20} color="#3b82f6" />
+                  <Text style={styles.menuItemText}>İsmi Düzenle</Text>
                 </TouchableOpacity>
+
                 <TouchableOpacity
-                  style={styles.editSaveBtn}
-                  onPress={handleUpdateIslem}
-                  disabled={loading}
+                  style={styles.menuItem}
+                  onPress={handleToggleIncludeInReports}
                 >
-                  <Text style={styles.editSaveText}>
-                    {loading ? "Kaydediliyor..." : "Kaydet"}
+                  {currentPersonel.include_in_reports ? (
+                    <>
+                      <EyeOff size={20} color="#f59e0b" />
+                      <Text style={styles.menuItemText}>
+                        Raporlara Dahil Etme
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Eye size={20} color="#10b981" />
+                      <Text style={styles.menuItemText}>
+                        Raporlara Dahil Et
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={handleArchive}
+                >
+                  <Archive size={20} color="#8b5cf6" />
+                  <Text style={styles.menuItemText}>Arşive Al</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={handleDeletePersonel}
+                >
+                  <Trash2 size={20} color="#ef4444" />
+                  <Text style={[styles.menuItemText, { color: "#ef4444" }]}>
+                    Personeli Sil
                   </Text>
                 </TouchableOpacity>
               </View>
+            </TouchableOpacity>
+          </Modal>
+
+          {/* İsim Düzenleme Modal */}
+          <Modal visible={showNameEditModal} transparent animationType="fade">
+            <View style={styles.editOverlay}>
+              <View style={styles.editModal}>
+                <Text style={styles.editTitle}>İsmi Düzenle</Text>
+                <Text style={styles.editLabel}>Personel Adı</Text>
+                <TextInput
+                  style={styles.editInput}
+                  value={editName}
+                  onChangeText={setEditName}
+                  placeholder="Personel adı"
+                  autoFocus
+                />
+                <View style={styles.editBtns}>
+                  <TouchableOpacity
+                    style={styles.editCancelBtn}
+                    onPress={() => setShowNameEditModal(false)}
+                  >
+                    <Text style={styles.editCancelText}>İptal</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.editSaveBtn}
+                    onPress={handleEditName}
+                    disabled={loading}
+                  >
+                    <Text style={styles.editSaveText}>
+                      {loading ? "Kaydediliyor..." : "Kaydet"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
-          </View>
-        </Modal>
-      </KeyboardAvoidingView>
+          </Modal>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
     </Modal>
   );
 }
@@ -667,7 +1143,13 @@ const styles = StyleSheet.create({
     borderBottomColor: "#e5e7eb",
   },
   backButton: { padding: 4 },
-  headerTitle: { fontSize: 20, fontWeight: "600", color: "#111827" },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#111827",
+    flex: 1,
+    textAlign: "center",
+  },
   content: { flex: 1 },
   balanceCard: {
     backgroundColor: "#f9fafb",
@@ -895,4 +1377,164 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   editSaveText: { fontSize: 19, fontWeight: "600", color: "#fff" },
+  // Hamburger menü stilleri
+  menuButton: { padding: 4 },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  menuContainer: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 30,
+  },
+  menuHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
+  },
+  menuTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
+  },
+  menuItemText: {
+    fontSize: 16,
+    color: "#374151",
+  },
+  excludedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fef3c7",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  excludedBadgeText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#f59e0b",
+  },
+  // Hesap/İzin Sekmeleri
+  viewTabContainer: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginVertical: 12,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 10,
+    padding: 4,
+  },
+  viewTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+  },
+  viewTabActive: {
+    backgroundColor: "#3b82f6",
+  },
+  viewTabActiveIzin: {
+    backgroundColor: "#8b5cf6",
+  },
+  viewTabText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6b7280",
+  },
+  viewTabTextActive: {
+    color: "#fff",
+  },
+  // İzin Özet Kartı
+  izinSummaryCard: {
+    backgroundColor: "#f0f9ff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#bae6fd",
+  },
+  izinSummaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  izinSummaryItem: {
+    alignItems: "center",
+  },
+  izinSummaryValue: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#0369a1",
+  },
+  izinSummaryLabel: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginTop: 4,
+  },
+  // İzin Item
+  izinItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 8,
+  },
+  izinItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
+  izinItemBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  izinItemBadgeText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  izinItemInfo: {
+    flex: 1,
+  },
+  izinItemType: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+  },
+  izinItemDate: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginTop: 2,
+  },
+  izinItemDesc: {
+    fontSize: 12,
+    color: "#9ca3af",
+    marginTop: 2,
+  },
+  emptyIzin: {
+    alignItems: "center",
+    paddingVertical: 40,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+  },
+  deleteBtn: {
+    padding: 8,
+  },
 });

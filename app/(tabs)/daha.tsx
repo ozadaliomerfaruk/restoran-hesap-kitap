@@ -22,6 +22,7 @@ import {
   Package,
   BarChart3,
   ShoppingBag,
+  Archive,
 } from "lucide-react-native";
 
 interface MenuItem {
@@ -97,6 +98,15 @@ const menuItems: MenuItem[] = [
     color: "#6366f1",
     bgColor: "#e0e7ff",
     route: "/ceksenet",
+  },
+  {
+    id: "arsiv",
+    title: "Arşiv",
+    subtitle: "Arşivlenen kayıtlar",
+    icon: Archive,
+    color: "#6b7280",
+    bgColor: "#f3f4f6",
+    route: "/arsiv",
   },
 ];
 

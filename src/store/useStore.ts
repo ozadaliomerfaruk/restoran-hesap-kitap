@@ -79,7 +79,7 @@ interface AppState {
   fetchPersoneller: () => Promise<void>;
   addPersonel: (
     personel: Omit<Personel, "id" | "created_at" | "updated_at">
-  ) => Promise<{ error: any }>;
+  ) => Promise<{ error: any; data: Personel | null }>;
   updatePersonel: (
     id: string,
     updates: Partial<Personel>
@@ -407,13 +407,11 @@ export const useStore = create<AppState>((set, get) => ({
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const { error } = await supabase
-      .from("kategoriler")
-      .insert({
-        ...kategori,
-        restaurant_id: profile.restaurant_id,
-        is_default: false,
-      });
+    const { error } = await supabase.from("kategoriler").insert({
+      ...kategori,
+      restaurant_id: profile.restaurant_id,
+      is_default: false,
+    });
 
     if (!error) {
       get().fetchKategoriler();
@@ -593,20 +591,24 @@ export const useStore = create<AppState>((set, get) => ({
   },
   addPersonel: async (personel) => {
     const { profile } = get();
-    if (!profile?.restaurant_id) return { error: "No restaurant" };
+    if (!profile?.restaurant_id) return { error: "No restaurant", data: null };
 
-    const { error } = await supabase.from("personel").insert({
-      ...personel,
-      restaurant_id: profile.restaurant_id,
-      balance: 0,
-      annual_leave_days: personel.annual_leave_days || 14,
-      used_leave_days: 0,
-    });
+    const { data, error } = await supabase
+      .from("personel")
+      .insert({
+        ...personel,
+        restaurant_id: profile.restaurant_id,
+        balance: 0,
+        annual_leave_days: personel.annual_leave_days || 0,
+        used_leave_days: 0,
+      })
+      .select()
+      .single();
 
     if (!error) {
       get().fetchPersoneller();
     }
-    return { error };
+    return { error, data };
   },
   updatePersonel: async (id, updates) => {
     const { error } = await supabase
@@ -1306,13 +1308,11 @@ export const useStore = create<AppState>((set, get) => ({
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const { error } = await supabase
-      .from("menu_items")
-      .insert({
-        ...item,
-        restaurant_id: profile.restaurant_id,
-        is_active: true,
-      });
+    const { error } = await supabase.from("menu_items").insert({
+      ...item,
+      restaurant_id: profile.restaurant_id,
+      is_active: true,
+    });
 
     if (!error) {
       get().fetchMenuItems();
@@ -1437,13 +1437,11 @@ export const useStore = create<AppState>((set, get) => ({
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const { error } = await supabase
-      .from("urunler")
-      .insert({
-        ...urun,
-        restaurant_id: profile.restaurant_id,
-        is_active: true,
-      });
+    const { error } = await supabase.from("urunler").insert({
+      ...urun,
+      restaurant_id: profile.restaurant_id,
+      is_active: true,
+    });
 
     if (!error) {
       get().fetchUrunler();

@@ -36,9 +36,15 @@ import {
   CalendarDays,
   PlusCircle,
   MinusCircle,
+  MoreVertical,
+  Edit3,
+  Archive,
+  EyeOff,
+  Eye,
 } from "lucide-react-native";
 import { useStore } from "../../src/store/useStore";
 import AddPersonelModal from "../../src/components/AddPersonelModal";
+import DatePickerField from "../../src/components/DatePickerField";
 import { Personel, Kasa, PersonelIslem, Izin } from "../../src/types";
 import { supabase } from "../../src/lib/supabase";
 
@@ -110,6 +116,12 @@ export default function PersonelScreen() {
   // Detail modal state
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [detailPersonel, setDetailPersonel] = useState<Personel | null>(null);
+  const [detailViewTab, setDetailViewTab] = useState<"hesap" | "izin">("hesap");
+
+  // Hamburger menü state'leri
+  const [showPersonelMenu, setShowPersonelMenu] = useState(false);
+  const [showNameEditModal, setShowNameEditModal] = useState(false);
+  const [editPersonelName, setEditPersonelName] = useState("");
 
   // İzin modal state
   const [showIzinModal, setShowIzinModal] = useState(false);
@@ -321,7 +333,120 @@ export default function PersonelScreen() {
 
   const openDetailModal = (personel: Personel) => {
     setDetailPersonel(personel);
+    setEditPersonelName(personel.name);
+    setDetailViewTab("hesap");
     setShowDetailModal(true);
+  };
+
+  // ========== HAMBURGER MENÜ FONKSİYONLARI ==========
+
+  // İsim Düzenleme
+  const handleEditPersonelName = async () => {
+    if (!editPersonelName.trim()) {
+      Alert.alert("Hata", "İsim boş olamaz");
+      return;
+    }
+    if (!detailPersonel) return;
+
+    setFormLoading(true);
+    const { error } = await supabase
+      .from("personel")
+      .update({ name: editPersonelName.trim() })
+      .eq("id", detailPersonel.id);
+    setFormLoading(false);
+
+    if (error) {
+      Alert.alert("Hata", "İsim güncellenirken bir hata oluştu");
+    } else {
+      setShowNameEditModal(false);
+      fetchPersoneller();
+      // detailPersonel'i güncelle
+      setDetailPersonel({ ...detailPersonel, name: editPersonelName.trim() });
+    }
+  };
+
+  // Arşive Alma
+  const handleArchivePersonel = () => {
+    setShowPersonelMenu(false);
+    Alert.alert(
+      "Arşive Al",
+      `"${detailPersonel?.name}" personelini arşive almak istediğinize emin misiniz?\n\nArşivdeki personeller listelerde görünmez ama verileri korunur.`,
+      [
+        { text: "İptal", style: "cancel" },
+        {
+          text: "Arşive Al",
+          onPress: async () => {
+            if (!detailPersonel) return;
+            setFormLoading(true);
+            const { error } = await supabase
+              .from("personel")
+              .update({ is_archived: true })
+              .eq("id", detailPersonel.id);
+            setFormLoading(false);
+            if (error) {
+              Alert.alert("Hata", "Arşive alınırken bir hata oluştu");
+            } else {
+              Alert.alert("Başarılı", "Personel arşive alındı");
+              setShowDetailModal(false);
+              fetchPersoneller();
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Raporlara Dahil Etme Toggle
+  const handleToggleIncludeInReports = async () => {
+    if (!detailPersonel) return;
+    setShowPersonelMenu(false);
+    setFormLoading(true);
+    const { error } = await supabase
+      .from("personel")
+      .update({ include_in_reports: !detailPersonel.include_in_reports })
+      .eq("id", detailPersonel.id);
+    setFormLoading(false);
+    if (error) {
+      Alert.alert("Hata", "Ayar güncellenirken bir hata oluştu");
+    } else {
+      fetchPersoneller();
+      setDetailPersonel({
+        ...detailPersonel,
+        include_in_reports: !detailPersonel.include_in_reports,
+      });
+    }
+  };
+
+  // Personel Silme
+  const handleDeletePersonel = () => {
+    setShowPersonelMenu(false);
+    Alert.alert(
+      "Personeli Sil",
+      `"${detailPersonel?.name}" personelini silmek istediğinize emin misiniz?\n\nBu işlem geri alınamaz ve tüm işlem geçmişi silinecektir.`,
+      [
+        { text: "İptal", style: "cancel" },
+        {
+          text: "Sil",
+          style: "destructive",
+          onPress: async () => {
+            if (!detailPersonel) return;
+            setFormLoading(true);
+            const { error } = await supabase
+              .from("personel")
+              .delete()
+              .eq("id", detailPersonel.id);
+            setFormLoading(false);
+            if (error) {
+              Alert.alert("Hata", "Personel silinirken bir hata oluştu");
+            } else {
+              Alert.alert("Başarılı", "Personel silindi");
+              setShowDetailModal(false);
+              fetchPersoneller();
+            }
+          },
+        },
+      ]
+    );
   };
 
   // İzin ile ilgili fonksiyonlar
@@ -369,7 +494,7 @@ export default function PersonelScreen() {
         restaurant_id: profile?.restaurant_id,
         type: izinType,
         start_date: izinStartDate,
-        end_date: izinEndDate,
+        end_date: izinStartDate, // Sadece tarih gösterimi için, gün sayısı ayrı
         days: izinTipi === "ekle" ? days : -days, // Düşürme için negatif
         description: izinDescription.trim() || null,
       });
@@ -378,7 +503,7 @@ export default function PersonelScreen() {
 
       Alert.alert(
         "Başarılı",
-        izinTipi === "ekle" ? "İzin eklendi" : "İzin düşüldü"
+        izinTipi === "ekle" ? "İzin hakkı eklendi" : "İzin kullanımı kaydedildi"
       );
       setShowIzinModal(false);
       fetchIzinler();
@@ -771,10 +896,7 @@ export default function PersonelScreen() {
             {activeIslemTipi ? (
               <View style={styles.formContainer}>
                 {/* Tarih */}
-                <View style={styles.dateBtn}>
-                  <Calendar size={16} color="#6b7280" />
-                  <Text style={styles.dateBtnText}>{formatDate(formDate)}</Text>
-                </View>
+                <DatePickerField value={formDate} onChange={setFormDate} />
 
                 {/* Gider kategorisi seçimi */}
                 {activeIslemTipi === "gider" ? (
@@ -999,10 +1121,69 @@ export default function PersonelScreen() {
             <Text style={styles.modalTitle}>
               {detailPersonel?.name || "Personel Detayı"}
             </Text>
-            <View style={{ width: 24 }} />
+            <TouchableOpacity onPress={() => setShowPersonelMenu(true)}>
+              <MoreVertical size={24} color="#374151" />
+            </TouchableOpacity>
           </View>
 
-          {detailPersonel ? (
+          {/* Raporlara dahil değil badge */}
+          {detailPersonel && !detailPersonel.include_in_reports && (
+            <View style={styles.excludedBadge}>
+              <EyeOff size={14} color="#f59e0b" />
+              <Text style={styles.excludedBadgeText}>
+                Raporlara dahil değil
+              </Text>
+            </View>
+          )}
+
+          {/* Hesap / İzin Sekmeleri */}
+          {detailPersonel && (
+            <View style={styles.detailTabContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.detailTab,
+                  detailViewTab === "hesap" && styles.detailTabActive,
+                ]}
+                onPress={() => setDetailViewTab("hesap")}
+              >
+                <Wallet
+                  size={16}
+                  color={detailViewTab === "hesap" ? "#fff" : "#6b7280"}
+                />
+                <Text
+                  style={[
+                    styles.detailTabText,
+                    detailViewTab === "hesap" && styles.detailTabTextActive,
+                  ]}
+                >
+                  Hesap Hareketleri
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.detailTab,
+                  detailViewTab === "izin" && styles.detailTabActiveIzin,
+                ]}
+                onPress={() => setDetailViewTab("izin")}
+              >
+                <CalendarDays
+                  size={16}
+                  color={detailViewTab === "izin" ? "#fff" : "#6b7280"}
+                />
+                <Text
+                  style={[
+                    styles.detailTabText,
+                    detailViewTab === "izin" && styles.detailTabTextActive,
+                  ]}
+                >
+                  İzin Hareketleri
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {/* Hesap Hareketleri Sekmesi */}
+          {detailPersonel && detailViewTab === "hesap" ? (
             <ScrollView style={styles.modalContent}>
               {/* Bakiye kartı */}
               <View
@@ -1106,6 +1287,217 @@ export default function PersonelScreen() {
               )}
             </ScrollView>
           ) : null}
+
+          {/* İzin Hareketleri Sekmesi */}
+          {detailPersonel && detailViewTab === "izin" ? (
+            <ScrollView style={styles.modalContent}>
+              {/* İzin Özeti */}
+              {(() => {
+                const personelIzinleriList = getPersonelIzinleri(
+                  detailPersonel.id
+                );
+                const toplamHak = personelIzinleriList
+                  .filter((i) => i.days > 0)
+                  .reduce((sum, i) => sum + i.days, 0);
+                const kullanilanIzin = Math.abs(
+                  personelIzinleriList
+                    .filter((i) => i.days < 0)
+                    .reduce((sum, i) => sum + i.days, 0)
+                );
+                const kalanIzin = toplamHak - kullanilanIzin;
+
+                return (
+                  <View style={styles.izinSummaryCard}>
+                    <View style={styles.izinSummaryRow}>
+                      <View style={styles.izinSummaryItem}>
+                        <Text style={styles.izinSummaryValue}>{toplamHak}</Text>
+                        <Text style={styles.izinSummaryLabel}>Toplam Hak</Text>
+                      </View>
+                      <View style={styles.izinSummaryItem}>
+                        <Text
+                          style={[
+                            styles.izinSummaryValue,
+                            { color: "#ef4444" },
+                          ]}
+                        >
+                          {kullanilanIzin}
+                        </Text>
+                        <Text style={styles.izinSummaryLabel}>Kullanılan</Text>
+                      </View>
+                      <View style={styles.izinSummaryItem}>
+                        <Text
+                          style={[
+                            styles.izinSummaryValue,
+                            { color: kalanIzin >= 0 ? "#10b981" : "#ef4444" },
+                          ]}
+                        >
+                          {kalanIzin}
+                        </Text>
+                        <Text style={styles.izinSummaryLabel}>Kalan</Text>
+                      </View>
+                    </View>
+                  </View>
+                );
+              })()}
+
+              {/* İzin Geçmişi */}
+              <Text style={styles.sectionTitle}>
+                İzin Geçmişi ({getPersonelIzinleri(detailPersonel.id).length})
+              </Text>
+              {getPersonelIzinleri(detailPersonel.id).length > 0 ? (
+                getPersonelIzinleri(detailPersonel.id).map((izin) => (
+                  <View key={izin.id} style={styles.leaveItem}>
+                    <View style={styles.leaveItemLeft}>
+                      <View
+                        style={[
+                          styles.leaveItemBadge,
+                          {
+                            backgroundColor:
+                              izin.days > 0 ? "#dcfce7" : "#fef3c7",
+                          },
+                        ]}
+                      >
+                        <Text
+                          style={[
+                            styles.leaveItemBadgeText,
+                            { color: izin.days > 0 ? "#10b981" : "#f59e0b" },
+                          ]}
+                        >
+                          {izin.days > 0 ? `+${izin.days}` : izin.days} gün
+                        </Text>
+                      </View>
+                      <View style={styles.leaveItemInfo}>
+                        <Text style={styles.leaveItemType}>
+                          {izinTypeLabels[izin.type]}
+                        </Text>
+                        <Text style={styles.leaveItemDate}>
+                          {formatDate(izin.start_date)}
+                        </Text>
+                        {izin.description && (
+                          <Text style={styles.leaveItemDesc} numberOfLines={1}>
+                            {izin.description}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.deleteBtn}
+                      onPress={() => handleDeleteIzin(izin)}
+                    >
+                      <Trash2 size={16} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                ))
+              ) : (
+                <View style={styles.noIslemContainer}>
+                  <CalendarDays size={40} color="#d1d5db" />
+                  <Text style={styles.noIslemText}>Henüz izin kaydı yok</Text>
+                </View>
+              )}
+            </ScrollView>
+          ) : null}
+
+          {/* Hamburger Menü */}
+          <Modal visible={showPersonelMenu} transparent animationType="fade">
+            <TouchableOpacity
+              style={styles.menuOverlay}
+              activeOpacity={1}
+              onPress={() => setShowPersonelMenu(false)}
+            >
+              <View style={styles.menuContainer}>
+                <View style={styles.menuHeader}>
+                  <Text style={styles.menuTitle}>Ayarlar</Text>
+                  <TouchableOpacity onPress={() => setShowPersonelMenu(false)}>
+                    <X size={24} color="#374151" />
+                  </TouchableOpacity>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={() => {
+                    setShowPersonelMenu(false);
+                    setShowNameEditModal(true);
+                  }}
+                >
+                  <Edit3 size={20} color="#3b82f6" />
+                  <Text style={styles.menuItemText}>İsmi Düzenle</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={handleToggleIncludeInReports}
+                >
+                  {detailPersonel?.include_in_reports ? (
+                    <>
+                      <EyeOff size={20} color="#f59e0b" />
+                      <Text style={styles.menuItemText}>
+                        Raporlara Dahil Etme
+                      </Text>
+                    </>
+                  ) : (
+                    <>
+                      <Eye size={20} color="#10b981" />
+                      <Text style={styles.menuItemText}>
+                        Raporlara Dahil Et
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={handleArchivePersonel}
+                >
+                  <Archive size={20} color="#8b5cf6" />
+                  <Text style={styles.menuItemText}>Arşive Al</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.menuItem}
+                  onPress={handleDeletePersonel}
+                >
+                  <Trash2 size={20} color="#ef4444" />
+                  <Text style={[styles.menuItemText, { color: "#ef4444" }]}>
+                    Personeli Sil
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </TouchableOpacity>
+          </Modal>
+
+          {/* İsim Düzenleme Modal */}
+          <Modal visible={showNameEditModal} transparent animationType="fade">
+            <View style={styles.nameEditOverlay}>
+              <View style={styles.nameEditModal}>
+                <Text style={styles.nameEditTitle}>İsmi Düzenle</Text>
+                <Text style={styles.nameEditLabel}>Personel Adı</Text>
+                <TextInput
+                  style={styles.nameEditInput}
+                  value={editPersonelName}
+                  onChangeText={setEditPersonelName}
+                  placeholder="Personel adı"
+                  autoFocus
+                />
+                <View style={styles.nameEditBtns}>
+                  <TouchableOpacity
+                    style={styles.nameEditCancelBtn}
+                    onPress={() => setShowNameEditModal(false)}
+                  >
+                    <Text style={styles.nameEditCancelText}>İptal</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.nameEditSaveBtn}
+                    onPress={handleEditPersonelName}
+                    disabled={formLoading}
+                  >
+                    <Text style={styles.nameEditSaveText}>
+                      {formLoading ? "Kaydediliyor..." : "Kaydet"}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </Modal>
         </SafeAreaView>
       </Modal>
 
@@ -1121,7 +1513,7 @@ export default function PersonelScreen() {
               <X size={24} color="#6b7280" />
             </TouchableOpacity>
             <Text style={styles.modalTitle}>
-              {izinTipi === "ekle" ? "İzin Ekle" : "İzin Düş"} -{" "}
+              {izinTipi === "ekle" ? "İzin Hakkı Ekle" : "İzin Kullandır"} -{" "}
               {izinPersonel?.name}
             </Text>
             <View style={{ width: 24 }} />
@@ -1154,120 +1546,129 @@ export default function PersonelScreen() {
               )}
             </View>
 
-            {/* Tarihler */}
-            <View style={styles.dateRow}>
-              <View style={styles.dateField}>
-                <Text style={styles.formLabel}>Başlangıç Tarihi</Text>
-                <View style={styles.dateInput}>
-                  <Calendar size={16} color="#6b7280" />
+            {/* İZİN EKLEME: Sadece gün sayısı ve tarih */}
+            {izinTipi === "ekle" ? (
+              <>
+                <Text style={styles.formLabel}>Gün Sayısı</Text>
+                <View style={styles.daysInputContainer}>
                   <TextInput
-                    style={styles.dateTextInput}
-                    value={izinStartDate}
-                    onChangeText={setIzinStartDate}
-                    placeholder="YYYY-MM-DD"
+                    style={styles.daysInput}
+                    value={izinDays}
+                    onChangeText={setIzinDays}
+                    keyboardType="number-pad"
+                    placeholder="1"
                     placeholderTextColor="#9ca3af"
                   />
+                  <Text style={styles.daysLabel}>gün</Text>
                 </View>
-              </View>
-              <View style={styles.dateField}>
-                <Text style={styles.formLabel}>Bitiş Tarihi</Text>
-                <View style={styles.dateInput}>
-                  <Calendar size={16} color="#6b7280" />
-                  <TextInput
-                    style={styles.dateTextInput}
-                    value={izinEndDate}
-                    onChangeText={setIzinEndDate}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#9ca3af"
-                  />
-                </View>
-              </View>
-            </View>
 
-            {/* Gün sayısı */}
-            <Text style={styles.formLabel}>Gün Sayısı</Text>
-            <View style={styles.daysInputContainer}>
-              <TextInput
-                style={styles.daysInput}
-                value={izinDays}
-                onChangeText={setIzinDays}
-                keyboardType="number-pad"
-                placeholder="1"
-                placeholderTextColor="#9ca3af"
-              />
-              <Text style={styles.daysLabel}>gün</Text>
-            </View>
+                <DatePickerField
+                  value={izinStartDate}
+                  onChange={setIzinStartDate}
+                  label="Ne Zaman Hakedildi?"
+                />
+              </>
+            ) : (
+              <>
+                {/* İZİN DÜŞME: İki tarih alanı */}
+                <View style={styles.izinDateRow}>
+                  <View style={styles.izinDateField}>
+                    <DatePickerField
+                      value={izinStartDate}
+                      onChange={(date) => {
+                        setIzinStartDate(date);
+                        // Gün sayısını otomatik hesapla
+                        const start = new Date(date);
+                        const end = new Date(izinEndDate);
+                        if (end >= start) {
+                          const diffTime = end.getTime() - start.getTime();
+                          const diffDays =
+                            Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                          setIzinDays(String(diffDays));
+                        }
+                      }}
+                      label="İzne Çıkış Tarihi"
+                    />
+                  </View>
+                  <View style={styles.izinDateField}>
+                    <DatePickerField
+                      value={izinEndDate}
+                      onChange={(date) => {
+                        setIzinEndDate(date);
+                        // Gün sayısını otomatik hesapla
+                        const start = new Date(izinStartDate);
+                        const end = new Date(date);
+                        if (end >= start) {
+                          const diffTime = end.getTime() - start.getTime();
+                          const diffDays =
+                            Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+                          setIzinDays(String(diffDays));
+                        }
+                      }}
+                      label="İzinden Dönüş Tarihi"
+                    />
+                  </View>
+                </View>
+
+                {/* Manuel gün sayısı düzenleme */}
+                <Text style={styles.formLabel}>Düşülecek Gün Sayısı</Text>
+                <View style={styles.manualDaysContainer}>
+                  <TouchableOpacity
+                    style={styles.dayAdjustBtn}
+                    onPress={() => {
+                      const current = parseInt(izinDays) || 1;
+                      if (current > 1) setIzinDays(String(current - 1));
+                    }}
+                  >
+                    <MinusCircle size={24} color="#ef4444" />
+                  </TouchableOpacity>
+                  <View style={styles.dayInputWrapper}>
+                    <TextInput
+                      style={styles.manualDaysInput}
+                      value={izinDays}
+                      onChangeText={(text) => {
+                        const num = text.replace(/[^0-9]/g, "");
+                        setIzinDays(num || "1");
+                      }}
+                      keyboardType="number-pad"
+                      textAlign="center"
+                    />
+                    <Text style={styles.dayInputLabel}>gün</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.dayAdjustBtn}
+                    onPress={() => {
+                      const current = parseInt(izinDays) || 0;
+                      setIzinDays(String(current + 1));
+                    }}
+                  >
+                    <PlusCircle size={24} color="#10b981" />
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.daysHint}>
+                  Tarihlerden otomatik hesaplandı. İsterseniz manuel
+                  değiştirebilirsiniz.
+                </Text>
+              </>
+            )}
 
             {/* Açıklama */}
-            <Text style={styles.formLabel}>Açıklama (opsiyonel)</Text>
+            <Text style={[styles.formLabel, { marginTop: 16 }]}>
+              Açıklama (opsiyonel)
+            </Text>
             <TextInput
               style={styles.izinDescInput}
               value={izinDescription}
               onChangeText={setIzinDescription}
-              placeholder="Ör: Yıllık izin kullanımı, doktor raporu..."
+              placeholder={
+                izinTipi === "ekle"
+                  ? "Ör: Yıllık izin hakkı..."
+                  : "Ör: Tatil, rapor..."
+              }
               placeholderTextColor="#9ca3af"
               multiline
               numberOfLines={3}
             />
-
-            {/* Mevcut izinler */}
-            {izinPersonel ? (
-              <>
-                <Text style={[styles.sectionTitle, { marginTop: 24 }]}>
-                  {izinPersonel.name} - İzin Geçmişi
-                </Text>
-                {getPersonelIzinleri(izinPersonel.id).length > 0 ? (
-                  getPersonelIzinleri(izinPersonel.id).map((izin) => (
-                    <View key={izin.id} style={styles.izinItem}>
-                      <View style={styles.izinItemLeft}>
-                        <View
-                          style={[
-                            styles.izinItemBadge,
-                            {
-                              backgroundColor:
-                                izin.days > 0 ? "#dcfce7" : "#fef3c7",
-                            },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.izinItemBadgeText,
-                              { color: izin.days > 0 ? "#10b981" : "#f59e0b" },
-                            ]}
-                          >
-                            {izin.days > 0 ? `+${izin.days}` : izin.days} gün
-                          </Text>
-                        </View>
-                        <View>
-                          <Text style={styles.izinItemType}>
-                            {izinTypeLabels[izin.type]}
-                          </Text>
-                          <Text style={styles.izinItemDate}>
-                            {formatDate(izin.start_date)} -{" "}
-                            {formatDate(izin.end_date)}
-                          </Text>
-                          {izin.description ? (
-                            <Text style={styles.izinItemDesc}>
-                              {izin.description}
-                            </Text>
-                          ) : null}
-                        </View>
-                      </View>
-                      <TouchableOpacity
-                        style={styles.deleteBtn}
-                        onPress={() => handleDeleteIzin(izin)}
-                      >
-                        <Trash2 size={16} color="#ef4444" />
-                      </TouchableOpacity>
-                    </View>
-                  ))
-                ) : (
-                  <View style={styles.noIslemContainer}>
-                    <Text style={styles.noIslemText}>Henüz izin kaydı yok</Text>
-                  </View>
-                )}
-              </>
-            ) : null}
           </ScrollView>
 
           <View style={styles.modalFooter}>
@@ -1291,8 +1692,8 @@ export default function PersonelScreen() {
                 {izinLoading
                   ? "Kaydediliyor..."
                   : izinTipi === "ekle"
-                  ? "İzin Ekle"
-                  : "İzin Düş"}
+                  ? "İzin Hakkı Ekle"
+                  : "İzin Kullandır"}
               </Text>
             </TouchableOpacity>
           </View>
@@ -1343,12 +1744,12 @@ const styles = StyleSheet.create({
     borderLeftWidth: 4,
   },
   summaryLabel: {
-    fontSize: 19,
+    fontSize: 12,
     color: "#6b7280",
     marginBottom: 4,
   },
   summaryValue: {
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: "700",
     color: "#111827",
   },
@@ -1391,12 +1792,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   personelName: {
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: "600",
     color: "#111827",
   },
   personelPosition: {
-    fontSize: 19,
+    fontSize: 13,
     color: "#6b7280",
     marginTop: 2,
   },
@@ -1421,7 +1822,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#fef2f2",
   },
   izinBadgeText: {
-    fontSize: 19,
+    fontSize: 11,
     fontWeight: "600",
   },
   personelRight: {
@@ -1435,7 +1836,7 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   balanceText: {
-    fontSize: 19,
+    fontSize: 14,
     fontWeight: "600",
   },
   expandedContent: {
@@ -1458,7 +1859,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   statusCardText: {
-    fontSize: 19,
+    fontSize: 13,
     fontWeight: "600",
     color: "#374151",
   },
@@ -1478,7 +1879,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
   },
   izinBtnText: {
-    fontSize: 19,
+    fontSize: 13,
     fontWeight: "600",
     color: "#10b981",
   },
@@ -1489,7 +1890,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   balanceCardText: {
-    fontSize: 19,
+    fontSize: 14,
     fontWeight: "600",
   },
   islemTipleri: {
@@ -1508,7 +1909,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   islemTipiBtnText: {
-    fontSize: 19,
+    fontSize: 12,
     fontWeight: "700",
   },
   formContainer: {
@@ -1526,12 +1927,12 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
   },
   dateBtnText: {
-    fontSize: 19,
+    fontSize: 14,
     color: "#374151",
     fontWeight: "500",
   },
   formLabel: {
-    fontSize: 19,
+    fontSize: 14,
     fontWeight: "500",
     color: "#374151",
     marginBottom: 8,
@@ -1556,7 +1957,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#ef4444",
   },
   kategoriChipText: {
-    fontSize: 19,
+    fontSize: 13,
     fontWeight: "500",
     color: "#6b7280",
   },
@@ -1580,7 +1981,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#3b82f6",
   },
   kasaChipText: {
-    fontSize: 19,
+    fontSize: 13,
     fontWeight: "500",
     color: "#6b7280",
   },
@@ -1592,7 +1993,7 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     paddingHorizontal: 14,
     paddingVertical: 12,
-    fontSize: 19,
+    fontSize: 14,
     color: "#111827",
   },
   amountRow: {
@@ -1608,13 +2009,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
   },
   currencySymbol: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
     color: "#6b7280",
   },
   amountInput: {
     flex: 1,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
     color: "#111827",
     paddingVertical: 12,
@@ -1631,7 +2032,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   submitBtnText: {
-    fontSize: 19,
+    fontSize: 14,
     fontWeight: "700",
     color: "#fff",
   },
@@ -1646,7 +2047,7 @@ const styles = StyleSheet.create({
     borderTopColor: "#f3f4f6",
   },
   historyBtnText: {
-    fontSize: 19,
+    fontSize: 14,
     color: "#6b7280",
     fontWeight: "500",
   },
@@ -1672,7 +2073,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   emptyText: {
-    fontSize: 19,
+    fontSize: 14,
     color: "#6b7280",
     textAlign: "center",
     lineHeight: 22,
@@ -1689,7 +2090,7 @@ const styles = StyleSheet.create({
   },
   emptyButtonText: {
     color: "#fff",
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: "600",
   },
   // Modal styles
@@ -1707,7 +2108,7 @@ const styles = StyleSheet.create({
     borderBottomColor: "#e5e7eb",
   },
   modalTitle: {
-    fontSize: 19,
+    fontSize: 18,
     fontWeight: "600",
     color: "#111827",
   },
@@ -1722,16 +2123,16 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   detailBalanceLabel: {
-    fontSize: 19,
+    fontSize: 14,
     color: "#6b7280",
     marginBottom: 4,
   },
   detailBalanceValue: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "700",
   },
   sectionTitle: {
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: "600",
     color: "#111827",
     marginBottom: 12,
@@ -1767,20 +2168,20 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   islemType: {
-    fontSize: 19,
+    fontSize: 13,
     fontWeight: "700",
   },
   islemDate: {
-    fontSize: 19,
+    fontSize: 12,
     color: "#9ca3af",
   },
   islemDesc: {
-    fontSize: 19,
+    fontSize: 13,
     color: "#374151",
     marginTop: 2,
   },
   islemKasa: {
-    fontSize: 19,
+    fontSize: 12,
     color: "#6b7280",
     marginTop: 2,
   },
@@ -1789,7 +2190,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   islemAmount: {
-    fontSize: 19,
+    fontSize: 15,
     fontWeight: "700",
   },
   deleteBtn: {
@@ -1800,8 +2201,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   noIslemText: {
-    fontSize: 19,
+    fontSize: 14,
     color: "#9ca3af",
+    marginTop: 8,
   },
   // İzin modal stilleri
   izinTypeRow: {
@@ -1820,7 +2222,7 @@ const styles = StyleSheet.create({
     backgroundColor: "#10b981",
   },
   izinTypeChipText: {
-    fontSize: 19,
+    fontSize: 13,
     fontWeight: "500",
     color: "#6b7280",
   },
@@ -1845,7 +2247,7 @@ const styles = StyleSheet.create({
   },
   dateTextInput: {
     flex: 1,
-    fontSize: 19,
+    fontSize: 14,
     color: "#111827",
     paddingVertical: 12,
   },
@@ -1859,90 +2261,23 @@ const styles = StyleSheet.create({
   },
   daysInput: {
     flex: 1,
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
     color: "#111827",
     paddingVertical: 12,
   },
   daysLabel: {
-    fontSize: 19,
+    fontSize: 14,
     color: "#6b7280",
   },
   izinDescInput: {
     backgroundColor: "#f3f4f6",
     borderRadius: 10,
     padding: 14,
-    fontSize: 19,
+    fontSize: 14,
     color: "#111827",
     minHeight: 80,
     textAlignVertical: "top",
-  },
-  izinItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: "#f9fafb",
-    padding: 12,
-    borderRadius: 10,
-    marginBottom: 8,
-  },
-  izinItemLeft: {
-    flex: 1,
-  },
-  izinItemBadge: {
-    alignSelf: "flex-start",
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-    marginBottom: 4,
-  },
-  izinItemBadgeText: {
-    fontSize: 19,
-    fontWeight: "700",
-  },
-  izinItemDates: {
-    fontSize: 19,
-    color: "#6b7280",
-    marginTop: 2,
-  },
-  izinItemDesc: {
-    fontSize: 19,
-    color: "#9ca3af",
-    marginTop: 2,
-    fontStyle: "italic",
-  },
-  izinItemRight: {
-    alignItems: "flex-end",
-    gap: 6,
-  },
-  izinItemDays: {
-    fontSize: 19,
-    fontWeight: "700",
-  },
-  izinSaveBtn: {
-    backgroundColor: "#10b981",
-    borderRadius: 12,
-    paddingVertical: 16,
-    alignItems: "center",
-    marginTop: 24,
-  },
-  izinSaveBtnDisabled: {
-    opacity: 0.6,
-  },
-  izinSaveBtnText: {
-    fontSize: 19,
-    fontWeight: "700",
-    color: "#fff",
-  },
-  izinItemType: {
-    fontSize: 19,
-    fontWeight: "600",
-    color: "#374151",
-  },
-  izinItemDate: {
-    fontSize: 19,
-    color: "#6b7280",
-    marginTop: 2,
   },
   modalFooter: {
     padding: 16,
@@ -1965,8 +2300,268 @@ const styles = StyleSheet.create({
     backgroundColor: "#f59e0b",
   },
   izinSubmitBtnText: {
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: "700",
     color: "#fff",
+  },
+  // Hamburger menü stilleri
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
+  },
+  menuContainer: {
+    backgroundColor: "#fff",
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingBottom: 30,
+  },
+  menuHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
+  },
+  menuTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111827",
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
+  },
+  menuItemText: {
+    fontSize: 16,
+    color: "#374151",
+  },
+  excludedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fef3c7",
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    gap: 6,
+  },
+  excludedBadgeText: {
+    fontSize: 13,
+    fontWeight: "500",
+    color: "#f59e0b",
+  },
+  // İsim düzenleme modal stilleri
+  nameEditOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  nameEditModal: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    width: "100%",
+    maxWidth: 360,
+  },
+  nameEditTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#111827",
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  nameEditLabel: {
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#374151",
+    marginBottom: 8,
+  },
+  nameEditInput: {
+    backgroundColor: "#f3f4f6",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 16,
+    color: "#111827",
+    marginBottom: 20,
+  },
+  nameEditBtns: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  nameEditCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: "#f3f4f6",
+    alignItems: "center",
+  },
+  nameEditCancelText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#6b7280",
+  },
+  nameEditSaveBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: "#3b82f6",
+    alignItems: "center",
+  },
+  nameEditSaveText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  // Detail Modal Sekmeleri
+  detailTabContainer: {
+    flexDirection: "row",
+    marginHorizontal: 16,
+    marginVertical: 12,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 10,
+    padding: 4,
+  },
+  detailTab: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 8,
+    gap: 6,
+  },
+  detailTabActive: {
+    backgroundColor: "#3b82f6",
+  },
+  detailTabActiveIzin: {
+    backgroundColor: "#8b5cf6",
+  },
+  detailTabText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6b7280",
+  },
+  detailTabTextActive: {
+    color: "#fff",
+  },
+  // İzin Özet Kartı
+  izinSummaryCard: {
+    backgroundColor: "#f0f9ff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "#bae6fd",
+  },
+  izinSummaryRow: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+  },
+  izinSummaryItem: {
+    alignItems: "center",
+  },
+  izinSummaryValue: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#0369a1",
+  },
+  izinSummaryLabel: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginTop: 4,
+  },
+  // İzin Hareketleri Liste Item (farklı isim - leave)
+  leaveItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#f9fafb",
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  leaveItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+    gap: 12,
+  },
+  leaveItemBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  leaveItemBadgeText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  leaveItemInfo: {
+    flex: 1,
+  },
+  leaveItemType: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+  },
+  leaveItemDate: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginTop: 2,
+  },
+  leaveItemDesc: {
+    fontSize: 12,
+    color: "#9ca3af",
+    marginTop: 2,
+  },
+  // İzin Tarih Seçimi (İzin Düşme)
+  izinDateRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 16,
+  },
+  izinDateField: {
+    flex: 1,
+  },
+  // Manuel gün sayısı düzenleme
+  manualDaysContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 16,
+    marginBottom: 8,
+  },
+  dayAdjustBtn: {
+    padding: 8,
+  },
+  dayInputWrapper: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    gap: 8,
+  },
+  manualDaysInput: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#111827",
+    minWidth: 50,
+  },
+  dayInputLabel: {
+    fontSize: 16,
+    color: "#6b7280",
+  },
+  daysHint: {
+    fontSize: 12,
+    color: "#9ca3af",
+    textAlign: "center",
+    marginBottom: 16,
   },
 });

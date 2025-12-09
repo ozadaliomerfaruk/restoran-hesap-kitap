@@ -24,6 +24,7 @@ import {
 import { useStore } from "../store/useStore";
 import { Cari, Urun, Kategori, IslemKalemi } from "../types";
 import { supabase } from "../lib/supabase";
+import DatePickerField from "./DatePickerField";
 
 interface Props {
   visible: boolean;
@@ -481,15 +482,11 @@ export default function KalemliFaturaModal({ visible, onClose, cari }: Props) {
           {/* Tarih ve Açıklama */}
           <View style={styles.topFields}>
             <View style={styles.dateField}>
-              <Text style={styles.fieldLabel}>Tarih</Text>
-              <View style={styles.dateInput}>
-                <TextInput
-                  style={styles.dateTextInput}
-                  value={formDate}
-                  onChangeText={setFormDate}
-                  placeholder="YYYY-MM-DD"
-                />
-              </View>
+              <DatePickerField
+                value={formDate}
+                onChange={setFormDate}
+                label="Tarih"
+              />
             </View>
             <View style={styles.descField}>
               <Text style={styles.fieldLabel}>Fatura Açıklaması</Text>
