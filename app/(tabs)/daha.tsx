@@ -1,11 +1,16 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ScrollView,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { useRouter } from "expo-router";
 import {
   Users,
   RefreshCw,
   FileText,
-  TrendingUp,
   Settings,
   ChevronRight,
   HelpCircle,
@@ -13,7 +18,11 @@ import {
   Bell,
   Shield,
   ClipboardList,
-} from 'lucide-react-native';
+  FolderTree,
+  Package,
+  BarChart3,
+  ShoppingBag,
+} from "lucide-react-native";
 
 interface MenuItem {
   id: string;
@@ -27,61 +36,88 @@ interface MenuItem {
 
 const menuItems: MenuItem[] = [
   {
-    id: 'islemler',
-    title: 'İşlemler',
-    subtitle: 'Gelir ve gider kayıtları',
+    id: "satistakip",
+    title: "Satış Takip",
+    subtitle: "Ürün bazlı satış analizi",
+    icon: ShoppingBag,
+    color: "#8b5cf6",
+    bgColor: "#ede9fe",
+    route: "/gunluksatis",
+  },
+  {
+    id: "raporlar",
+    title: "Raporlar",
+    subtitle: "Detaylı finansal raporlar",
+    icon: BarChart3,
+    color: "#06b6d4",
+    bgColor: "#cffafe",
+    route: "/raporlar",
+  },
+  {
+    id: "islemler",
+    title: "İşlemler",
+    subtitle: "Gelir ve gider kayıtları",
     icon: ClipboardList,
-    color: '#f59e0b',
-    bgColor: '#fef3c7',
-    route: '/islemler',
+    color: "#f59e0b",
+    bgColor: "#fef3c7",
+    route: "/islemler",
   },
   {
-    id: 'gunluksatis',
-    title: 'Günlük Satış',
-    subtitle: 'Satış verilerini kaydet',
-    icon: TrendingUp,
-    color: '#10b981',
-    bgColor: '#dcfce7',
-    route: '/gunluksatis',
+    id: "kategoriler",
+    title: "Kategoriler",
+    subtitle: "Gelir ve gider kategorileri",
+    icon: FolderTree,
+    color: "#8b5cf6",
+    bgColor: "#ede9fe",
+    route: "/kategoriler",
   },
   {
-    id: 'tekrarlayan',
-    title: 'Tekrarlayan Ödemeler',
-    subtitle: 'Kira, fatura, sigorta',
+    id: "urunler",
+    title: "Ürünler",
+    subtitle: "Ürün ve malzeme tanımları",
+    icon: Package,
+    color: "#3b82f6",
+    bgColor: "#dbeafe",
+    route: "/urunler",
+  },
+  {
+    id: "tekrarlayan",
+    title: "Tekrarlayan Ödemeler",
+    subtitle: "Kira, fatura, sigorta",
     icon: RefreshCw,
-    color: '#8b5cf6',
-    bgColor: '#ede9fe',
-    route: '/tekrarlayan',
+    color: "#ec4899",
+    bgColor: "#fce7f3",
+    route: "/tekrarlayan",
   },
   {
-    id: 'ceksenet',
-    title: 'Çek / Senet',
-    subtitle: 'Çek ve senet takibi',
+    id: "ceksenet",
+    title: "Çek / Senet",
+    subtitle: "Çek ve senet takibi",
     icon: FileText,
-    color: '#6366f1',
-    bgColor: '#e0e7ff',
-    route: '/ceksenet',
+    color: "#6366f1",
+    bgColor: "#e0e7ff",
+    route: "/ceksenet",
   },
 ];
 
 const settingsItems = [
   {
-    id: 'ayarlar',
-    title: 'Ayarlar',
+    id: "ayarlar",
+    title: "Ayarlar",
     icon: Settings,
-    route: '/ayarlar',
+    route: "/ayarlar",
   },
   {
-    id: 'bildirimler',
-    title: 'Bildirimler',
+    id: "bildirimler",
+    title: "Bildirimler",
     icon: Bell,
-    route: '/ayarlar',
+    route: "/ayarlar",
   },
   {
-    id: 'guvenlik',
-    title: 'Güvenlik',
+    id: "guvenlik",
+    title: "Güvenlik",
     icon: Shield,
-    route: '/ayarlar',
+    route: "/ayarlar",
   },
 ];
 
@@ -120,9 +156,7 @@ export default function DahaFazla() {
         {/* Ana Modüller */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Modüller</Text>
-          <View style={styles.menuList}>
-            {menuItems.map(renderMenuItem)}
-          </View>
+          <View style={styles.menuList}>{menuItems.map(renderMenuItem)}</View>
         </View>
 
         {/* Ayarlar */}
@@ -154,7 +188,9 @@ export default function DahaFazla() {
             <Star size={24} color="#f59e0b" />
             <View style={styles.proText}>
               <Text style={styles.proTitle}>Pro'ya Yükselt</Text>
-              <Text style={styles.proSubtitle}>Tüm özelliklerin kilidini aç</Text>
+              <Text style={styles.proSubtitle}>
+                Tüm özelliklerin kilidini aç
+              </Text>
             </View>
           </View>
           <ChevronRight size={20} color="#f59e0b" />
@@ -175,7 +211,7 @@ export default function DahaFazla() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#f9fafb",
   },
   header: {
     paddingHorizontal: 16,
@@ -183,31 +219,31 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontWeight: "bold",
+    color: "#111827",
   },
   section: {
     paddingHorizontal: 16,
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6b7280',
+    fontSize: 19,
+    fontWeight: "600",
+    color: "#6b7280",
     marginBottom: 12,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   menuList: {
     gap: 12,
   },
   menuCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -217,88 +253,88 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   menuInfo: {
     flex: 1,
     marginLeft: 12,
   },
   menuTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontSize: 19,
+    fontWeight: "600",
+    color: "#111827",
   },
   menuSubtitle: {
-    fontSize: 13,
-    color: '#6b7280',
+    fontSize: 19,
+    color: "#6b7280",
     marginTop: 2,
   },
   settingsList: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 16,
-    overflow: 'hidden',
-    shadowColor: '#000',
+    overflow: "hidden",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
   },
   settingsItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     padding: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: "#f3f4f6",
   },
   settingsLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   settingsTitle: {
-    fontSize: 15,
-    color: '#111827',
+    fontSize: 19,
+    color: "#111827",
   },
   proBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fef3c7',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#fef3c7",
     marginHorizontal: 16,
     borderRadius: 16,
     padding: 16,
     marginBottom: 16,
   },
   proContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
   },
   proText: {
     gap: 2,
   },
   proTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#92400e',
+    fontSize: 19,
+    fontWeight: "600",
+    color: "#92400e",
   },
   proSubtitle: {
-    fontSize: 13,
-    color: '#b45309',
+    fontSize: 19,
+    color: "#b45309",
   },
   helpButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
     paddingVertical: 16,
     marginHorizontal: 16,
   },
   helpText: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 19,
+    color: "#6b7280",
   },
   bottomPadding: {
     height: 20,

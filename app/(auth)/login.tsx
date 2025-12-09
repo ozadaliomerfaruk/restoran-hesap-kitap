@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   View,
   Text,
@@ -8,21 +8,21 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-} from 'react-native';
-import { Link, router } from 'expo-router';
-import { useAuth } from '../../src/context/AuthContext';
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react-native';
+} from "react-native";
+import { Link, router } from "expo-router";
+import { useAuth } from "../../src/context/AuthContext";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react-native";
 
 export default function Login() {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { signIn } = useAuth();
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Hata', 'Lütfen tüm alanları doldurun');
+      Alert.alert("Hata", "Lütfen tüm alanları doldurun");
       return;
     }
 
@@ -31,15 +31,15 @@ export default function Login() {
     setLoading(false);
 
     if (error) {
-      Alert.alert('Giriş Hatası', error.message);
+      Alert.alert("Giriş Hatası", error.message);
     } else {
-      router.replace('/(tabs)');
+      router.replace("/(tabs)");
     }
   };
 
   return (
     <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
       style={styles.container}
     >
       <View style={styles.content}>
@@ -96,7 +96,7 @@ export default function Login() {
             disabled={loading}
           >
             <Text style={styles.buttonText}>
-              {loading ? 'Giriş yapılıyor...' : 'Giriş Yap'}
+              {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -117,35 +117,35 @@ export default function Login() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   header: {
     marginBottom: 40,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
-    textAlign: 'center',
+    fontWeight: "bold",
+    color: "#111827",
+    textAlign: "center",
     marginBottom: 8,
   },
   subtitle: {
-    fontSize: 16,
-    color: '#6b7280',
-    textAlign: 'center',
+    fontSize: 19,
+    color: "#6b7280",
+    textAlign: "center",
   },
   form: {
     gap: 16,
   },
   inputContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
     borderRadius: 12,
     paddingHorizontal: 16,
     height: 56,
@@ -155,48 +155,48 @@ const styles = StyleSheet.create({
   },
   input: {
     flex: 1,
-    fontSize: 16,
-    color: '#111827',
+    fontSize: 19,
+    color: "#111827",
   },
   eyeIcon: {
     padding: 4,
   },
   forgotPassword: {
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
   },
   forgotPasswordText: {
-    color: '#10b981',
-    fontSize: 14,
-    fontWeight: '500',
+    color: "#10b981",
+    fontSize: 19,
+    fontWeight: "500",
   },
   button: {
-    backgroundColor: '#10b981',
+    backgroundColor: "#10b981",
     borderRadius: 12,
     height: 56,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginTop: 8,
   },
   buttonDisabled: {
     opacity: 0.7,
   },
   buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: "#fff",
+    fontSize: 19,
+    fontWeight: "600",
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    flexDirection: "row",
+    justifyContent: "center",
     marginTop: 32,
   },
   footerText: {
-    color: '#6b7280',
-    fontSize: 14,
+    color: "#6b7280",
+    fontSize: 19,
   },
   linkText: {
-    color: '#10b981',
-    fontSize: 14,
-    fontWeight: '600',
+    color: "#10b981",
+    fontSize: 19,
+    fontWeight: "600",
   },
 });

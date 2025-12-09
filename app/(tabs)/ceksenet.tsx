@@ -1,35 +1,58 @@
-import { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl, ScrollView } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plus, FileText, Calendar, Building2, ArrowDownLeft, ArrowUpRight } from 'lucide-react-native';
-import { useStore } from '../../src/store/useStore';
-import AddCekSenetModal from '../../src/components/AddCekSenetModal';
-import { CekSenet, CekSenetStatus } from '../../src/types';
+import { useState, useEffect } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  FlatList,
+  TouchableOpacity,
+  RefreshControl,
+  ScrollView,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  Plus,
+  FileText,
+  Calendar,
+  Building2,
+  ArrowDownLeft,
+  ArrowUpRight,
+} from "lucide-react-native";
+import { useStore } from "../../src/store/useStore";
+import AddCekSenetModal from "../../src/components/AddCekSenetModal";
+import { CekSenet, CekSenetStatus } from "../../src/types";
 
-type FilterType = 'all' | 'cek' | 'senet';
-type DirectionFilter = 'all' | 'alacak' | 'borc';
+type FilterType = "all" | "cek" | "senet";
+type DirectionFilter = "all" | "alacak" | "borc";
 
 const statusLabels: Record<CekSenetStatus, string> = {
-  beklemede: 'Beklemede',
-  tahsil_edildi: 'Tahsil Edildi',
-  odendi: 'Ödendi',
-  karsilıksiz: 'Karşılıksız',
-  iptal: 'İptal',
+  beklemede: "Beklemede",
+  tahsil_edildi: "Tahsil Edildi",
+  odendi: "Ödendi",
+  karsilıksiz: "Karşılıksız",
+  iptal: "İptal",
 };
 
 const statusColors: Record<CekSenetStatus, string> = {
-  beklemede: '#f59e0b',
-  tahsil_edildi: '#10b981',
-  odendi: '#10b981',
-  karsilıksiz: '#ef4444',
-  iptal: '#6b7280',
+  beklemede: "#f59e0b",
+  tahsil_edildi: "#10b981",
+  odendi: "#10b981",
+  karsilıksiz: "#ef4444",
+  iptal: "#6b7280",
 };
 
 export default function CekSenetScreen() {
-  const { cekSenetler, loadingCekSenetler, fetchCekSenetler, fetchProfile, profile, fetchCariler } = useStore();
+  const {
+    cekSenetler,
+    loadingCekSenetler,
+    fetchCekSenetler,
+    fetchProfile,
+    profile,
+    fetchCariler,
+  } = useStore();
   const [showAddModal, setShowAddModal] = useState(false);
-  const [filter, setFilter] = useState<FilterType>('all');
-  const [directionFilter, setDirectionFilter] = useState<DirectionFilter>('all');
+  const [filter, setFilter] = useState<FilterType>("all");
+  const [directionFilter, setDirectionFilter] =
+    useState<DirectionFilter>("all");
   const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
@@ -53,45 +76,48 @@ export default function CekSenetScreen() {
   };
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('tr-TR', {
-      style: 'currency',
-      currency: 'TRY',
+    return new Intl.NumberFormat("tr-TR", {
+      style: "currency",
+      currency: "TRY",
     }).format(amount);
   };
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr);
-    return date.toLocaleDateString('tr-TR', {
-      day: 'numeric',
-      month: 'short',
-      year: 'numeric',
+    return date.toLocaleDateString("tr-TR", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
     });
   };
 
-  const filteredCekSenetler = cekSenetler.filter(cs => {
-    if (filter !== 'all' && cs.type !== filter) return false;
-    if (directionFilter !== 'all' && cs.direction !== directionFilter) return false;
+  const filteredCekSenetler = cekSenetler.filter((cs) => {
+    if (filter !== "all" && cs.type !== filter) return false;
+    if (directionFilter !== "all" && cs.direction !== directionFilter)
+      return false;
     return true;
   });
 
   const bekleyenAlacak = cekSenetler
-    .filter(cs => cs.direction === 'alacak' && cs.status === 'beklemede')
+    .filter((cs) => cs.direction === "alacak" && cs.status === "beklemede")
     .reduce((sum, cs) => sum + cs.amount, 0);
 
   const bekleyenBorc = cekSenetler
-    .filter(cs => cs.direction === 'borc' && cs.status === 'beklemede')
+    .filter((cs) => cs.direction === "borc" && cs.status === "beklemede")
     .reduce((sum, cs) => sum + cs.amount, 0);
 
   const renderCekSenetItem = ({ item }: { item: CekSenet }) => {
-    const isAlacak = item.direction === 'alacak';
+    const isAlacak = item.direction === "alacak";
 
     return (
       <TouchableOpacity style={styles.card}>
         <View style={styles.cardLeft}>
-          <View style={[
-            styles.cardIcon,
-            { backgroundColor: isAlacak ? '#dcfce7' : '#fee2e2' }
-          ]}>
+          <View
+            style={[
+              styles.cardIcon,
+              { backgroundColor: isAlacak ? "#dcfce7" : "#fee2e2" },
+            ]}
+          >
             {isAlacak ? (
               <ArrowDownLeft size={24} color="#10b981" />
             ) : (
@@ -101,35 +127,48 @@ export default function CekSenetScreen() {
           <View style={styles.cardInfo}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardType}>
-                {item.type === 'cek' ? 'Çek' : 'Senet'}
+                {item.type === "cek" ? "Çek" : "Senet"}
               </Text>
-              <View style={[styles.statusBadge, { backgroundColor: statusColors[item.status] + '20' }]}>
-                <Text style={[styles.statusText, { color: statusColors[item.status] }]}>
+              <View
+                style={[
+                  styles.statusBadge,
+                  { backgroundColor: statusColors[item.status] + "20" },
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.statusText,
+                    { color: statusColors[item.status] },
+                  ]}
+                >
                   {statusLabels[item.status]}
                 </Text>
               </View>
             </View>
-            {item.cari && (
-              <Text style={styles.cardCari}>{item.cari.name}</Text>
-            )}
+            {item.cari && <Text style={styles.cardCari}>{item.cari.name}</Text>}
             <View style={styles.cardMeta}>
               <Calendar size={12} color="#6b7280" />
-              <Text style={styles.cardDate}>Vade: {formatDate(item.due_date)}</Text>
+              <Text style={styles.cardDate}>
+                Vade: {formatDate(item.due_date)}
+              </Text>
             </View>
-            {item.serial_number && (
-              <Text style={styles.cardSerial}>No: {item.serial_number}</Text>
+            {item.document_no && (
+              <Text style={styles.cardSerial}>No: {item.document_no}</Text>
             )}
           </View>
         </View>
         <View style={styles.cardRight}>
-          <Text style={[
-            styles.cardAmount,
-            { color: isAlacak ? '#10b981' : '#ef4444' }
-          ]}>
-            {isAlacak ? '+' : '-'}{formatCurrency(item.amount)}
+          <Text
+            style={[
+              styles.cardAmount,
+              { color: isAlacak ? "#10b981" : "#ef4444" },
+            ]}
+          >
+            {isAlacak ? "+" : "-"}
+            {formatCurrency(item.amount)}
           </Text>
           <Text style={styles.cardDirection}>
-            {isAlacak ? 'Alacak' : 'Borç'}
+            {isAlacak ? "Alacak" : "Borç"}
           </Text>
         </View>
       </TouchableOpacity>
@@ -141,7 +180,10 @@ export default function CekSenetScreen() {
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.title}>Çek / Senet</Text>
-        <TouchableOpacity style={styles.addButton} onPress={() => setShowAddModal(true)}>
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={() => setShowAddModal(true)}
+        >
           <Plus size={24} color="#fff" />
         </TouchableOpacity>
       </View>
@@ -151,14 +193,14 @@ export default function CekSenetScreen() {
         <View style={[styles.summaryCard, styles.summaryCardGreen]}>
           <ArrowDownLeft size={20} color="#10b981" />
           <Text style={styles.summaryLabel}>Bekleyen Alacak</Text>
-          <Text style={[styles.summaryValue, { color: '#10b981' }]}>
+          <Text style={[styles.summaryValue, { color: "#10b981" }]}>
             {formatCurrency(bekleyenAlacak)}
           </Text>
         </View>
         <View style={[styles.summaryCard, styles.summaryCardRed]}>
           <ArrowUpRight size={20} color="#ef4444" />
           <Text style={styles.summaryLabel}>Bekleyen Borç</Text>
-          <Text style={[styles.summaryValue, { color: '#ef4444' }]}>
+          <Text style={[styles.summaryValue, { color: "#ef4444" }]}>
             {formatCurrency(bekleyenBorc)}
           </Text>
         </View>
@@ -172,45 +214,95 @@ export default function CekSenetScreen() {
         contentContainerStyle={styles.filtersContent}
       >
         <TouchableOpacity
-          style={[styles.filterChip, filter === 'all' && styles.filterChipActive]}
-          onPress={() => setFilter('all')}
+          style={[
+            styles.filterChip,
+            filter === "all" && styles.filterChipActive,
+          ]}
+          onPress={() => setFilter("all")}
         >
-          <Text style={[styles.filterChipText, filter === 'all' && styles.filterChipTextActive]}>
+          <Text
+            style={[
+              styles.filterChipText,
+              filter === "all" && styles.filterChipTextActive,
+            ]}
+          >
             Tümü
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.filterChip, filter === 'cek' && styles.filterChipActive]}
-          onPress={() => setFilter('cek')}
+          style={[
+            styles.filterChip,
+            filter === "cek" && styles.filterChipActive,
+          ]}
+          onPress={() => setFilter("cek")}
         >
-          <Text style={[styles.filterChipText, filter === 'cek' && styles.filterChipTextActive]}>
+          <Text
+            style={[
+              styles.filterChipText,
+              filter === "cek" && styles.filterChipTextActive,
+            ]}
+          >
             Çekler
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.filterChip, filter === 'senet' && styles.filterChipActive]}
-          onPress={() => setFilter('senet')}
+          style={[
+            styles.filterChip,
+            filter === "senet" && styles.filterChipActive,
+          ]}
+          onPress={() => setFilter("senet")}
         >
-          <Text style={[styles.filterChipText, filter === 'senet' && styles.filterChipTextActive]}>
+          <Text
+            style={[
+              styles.filterChipText,
+              filter === "senet" && styles.filterChipTextActive,
+            ]}
+          >
             Senetler
           </Text>
         </TouchableOpacity>
         <View style={styles.filterDivider} />
         <TouchableOpacity
-          style={[styles.filterChip, directionFilter === 'alacak' && styles.filterChipActiveGreen]}
-          onPress={() => setDirectionFilter(directionFilter === 'alacak' ? 'all' : 'alacak')}
+          style={[
+            styles.filterChip,
+            directionFilter === "alacak" && styles.filterChipActiveGreen,
+          ]}
+          onPress={() =>
+            setDirectionFilter(directionFilter === "alacak" ? "all" : "alacak")
+          }
         >
-          <ArrowDownLeft size={14} color={directionFilter === 'alacak' ? '#fff' : '#10b981'} />
-          <Text style={[styles.filterChipText, directionFilter === 'alacak' && styles.filterChipTextActive]}>
+          <ArrowDownLeft
+            size={14}
+            color={directionFilter === "alacak" ? "#fff" : "#10b981"}
+          />
+          <Text
+            style={[
+              styles.filterChipText,
+              directionFilter === "alacak" && styles.filterChipTextActive,
+            ]}
+          >
             Alacak
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.filterChip, directionFilter === 'borc' && styles.filterChipActiveRed]}
-          onPress={() => setDirectionFilter(directionFilter === 'borc' ? 'all' : 'borc')}
+          style={[
+            styles.filterChip,
+            directionFilter === "borc" && styles.filterChipActiveRed,
+          ]}
+          onPress={() =>
+            setDirectionFilter(directionFilter === "borc" ? "all" : "borc")
+          }
         >
-          <ArrowUpRight size={14} color={directionFilter === 'borc' ? '#fff' : '#ef4444'} />
-          <Text style={[styles.filterChipText, directionFilter === 'borc' && styles.filterChipTextActive]}>
+          <ArrowUpRight
+            size={14}
+            color={directionFilter === "borc" ? "#fff" : "#ef4444"}
+          />
+          <Text
+            style={[
+              styles.filterChipText,
+              directionFilter === "borc" && styles.filterChipTextActive,
+            ]}
+          >
             Borç
           </Text>
         </TouchableOpacity>
@@ -234,10 +326,13 @@ export default function CekSenetScreen() {
           </View>
           <Text style={styles.emptyTitle}>Çek/Senet bulunamadı</Text>
           <Text style={styles.emptyText}>
-            Çek veya senet eklemek için{'\n'}
+            Çek veya senet eklemek için{"\n"}
             sağ üstteki + butonuna tıklayın
           </Text>
-          <TouchableOpacity style={styles.emptyButton} onPress={() => setShowAddModal(true)}>
+          <TouchableOpacity
+            style={styles.emptyButton}
+            onPress={() => setShowAddModal(true)}
+          >
             <Plus size={20} color="#fff" />
             <Text style={styles.emptyButtonText}>Çek/Senet Ekle</Text>
           </TouchableOpacity>
@@ -245,7 +340,10 @@ export default function CekSenetScreen() {
       )}
 
       {/* Add Modal */}
-      <AddCekSenetModal visible={showAddModal} onClose={() => setShowAddModal(false)} />
+      <AddCekSenetModal
+        visible={showAddModal}
+        onClose={() => setShowAddModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -253,42 +351,42 @@ export default function CekSenetScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#f9fafb",
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 20,
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontWeight: "bold",
+    color: "#111827",
   },
   addButton: {
-    backgroundColor: '#6366f1',
+    backgroundColor: "#6366f1",
     width: 44,
     height: 44,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   summaryRow: {
-    flexDirection: 'row',
+    flexDirection: "row",
     paddingHorizontal: 16,
     gap: 12,
     marginBottom: 16,
   },
   summaryCard: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     gap: 6,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -296,19 +394,19 @@ const styles = StyleSheet.create({
   },
   summaryCardGreen: {
     borderTopWidth: 3,
-    borderTopColor: '#10b981',
+    borderTopColor: "#10b981",
   },
   summaryCardRed: {
     borderTopWidth: 3,
-    borderTopColor: '#ef4444',
+    borderTopColor: "#ef4444",
   },
   summaryLabel: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontSize: 19,
+    color: "#6b7280",
   },
   summaryValue: {
-    fontSize: 18,
-    fontWeight: '700',
+    fontSize: 20,
+    fontWeight: "700",
   },
   filtersContainer: {
     maxHeight: 50,
@@ -316,44 +414,44 @@ const styles = StyleSheet.create({
   filtersContent: {
     paddingHorizontal: 16,
     gap: 8,
-    alignItems: 'center',
+    alignItems: "center",
   },
   filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 20,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     gap: 4,
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: "#e5e7eb",
     marginRight: 8,
   },
   filterChipActive: {
-    backgroundColor: '#6366f1',
-    borderColor: '#6366f1',
+    backgroundColor: "#6366f1",
+    borderColor: "#6366f1",
   },
   filterChipActiveGreen: {
-    backgroundColor: '#10b981',
-    borderColor: '#10b981',
+    backgroundColor: "#10b981",
+    borderColor: "#10b981",
   },
   filterChipActiveRed: {
-    backgroundColor: '#ef4444',
-    borderColor: '#ef4444',
+    backgroundColor: "#ef4444",
+    borderColor: "#ef4444",
   },
   filterChipText: {
-    fontSize: 13,
-    color: '#6b7280',
-    fontWeight: '500',
+    fontSize: 19,
+    color: "#6b7280",
+    fontWeight: "500",
   },
   filterChipTextActive: {
-    color: '#fff',
+    color: "#fff",
   },
   filterDivider: {
     width: 1,
     height: 24,
-    backgroundColor: '#e5e7eb',
+    backgroundColor: "#e5e7eb",
     marginHorizontal: 4,
   },
   listContent: {
@@ -363,21 +461,21 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   card: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "#fff",
     borderRadius: 16,
     padding: 16,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
   },
   cardLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 12,
     flex: 1,
   },
@@ -385,22 +483,22 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   cardInfo: {
     flex: 1,
     gap: 2,
   },
   cardHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 8,
   },
   cardType: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontSize: 19,
+    fontWeight: "600",
+    color: "#111827",
   },
   statusBadge: {
     paddingHorizontal: 8,
@@ -408,81 +506,81 @@ const styles = StyleSheet.create({
     borderRadius: 6,
   },
   statusText: {
-    fontSize: 11,
-    fontWeight: '600',
+    fontSize: 19,
+    fontWeight: "600",
   },
   cardCari: {
-    fontSize: 13,
-    color: '#6366f1',
+    fontSize: 19,
+    color: "#6366f1",
     marginTop: 2,
   },
   cardMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     gap: 4,
     marginTop: 2,
   },
   cardDate: {
-    fontSize: 12,
-    color: '#6b7280',
+    fontSize: 19,
+    color: "#6b7280",
   },
   cardSerial: {
-    fontSize: 11,
-    color: '#9ca3af',
+    fontSize: 19,
+    color: "#9ca3af",
     marginTop: 2,
   },
   cardRight: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
     gap: 2,
   },
   cardAmount: {
-    fontSize: 16,
-    fontWeight: '600',
+    fontSize: 19,
+    fontWeight: "600",
   },
   cardDirection: {
-    fontSize: 11,
-    color: '#9ca3af',
+    fontSize: 19,
+    color: "#9ca3af",
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 40,
   },
   emptyIcon: {
     width: 100,
     height: 100,
     borderRadius: 50,
-    backgroundColor: '#f3f4f6',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#f3f4f6",
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 24,
   },
   emptyTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#111827',
+    fontWeight: "600",
+    color: "#111827",
     marginBottom: 8,
   },
   emptyText: {
-    fontSize: 14,
-    color: '#6b7280',
-    textAlign: 'center',
+    fontSize: 19,
+    color: "#6b7280",
+    textAlign: "center",
     lineHeight: 22,
     marginBottom: 24,
   },
   emptyButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#6366f1',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#6366f1",
     paddingHorizontal: 24,
     paddingVertical: 14,
     borderRadius: 12,
     gap: 8,
   },
   emptyButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
+    color: "#fff",
+    fontSize: 19,
+    fontWeight: "600",
   },
 });

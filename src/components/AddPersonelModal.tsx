@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   View,
   Text,
@@ -10,45 +10,50 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-} from 'react-native';
-import { X } from 'lucide-react-native';
-import { useStore } from '../store/useStore';
+} from "react-native";
+import { X } from "lucide-react-native";
+import { useStore } from "../store/useStore";
 
 interface AddPersonelModalProps {
   visible: boolean;
   onClose: () => void;
 }
 
-export default function AddPersonelModal({ visible, onClose }: AddPersonelModalProps) {
+export default function AddPersonelModal({
+  visible,
+  onClose,
+}: AddPersonelModalProps) {
   const { addPersonel } = useStore();
   const [loading, setLoading] = useState(false);
-  const [name, setName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [position, setPosition] = useState('');
-  const [salary, setSalary] = useState('');
-  const [startDate, setStartDate] = useState(new Date().toISOString().split('T')[0]);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [position, setPosition] = useState("");
+  const [salary, setSalary] = useState("");
+  const [startDate, setStartDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
 
   const resetForm = () => {
-    setName('');
-    setPhone('');
-    setPosition('');
-    setSalary('');
-    setStartDate(new Date().toISOString().split('T')[0]);
+    setName("");
+    setPhone("");
+    setPosition("");
+    setSalary("");
+    setStartDate(new Date().toISOString().split("T")[0]);
   };
 
   const handleSubmit = async () => {
     if (!name.trim()) {
-      Alert.alert('Hata', 'Personel adı gerekli');
+      Alert.alert("Hata", "Personel adı gerekli");
       return;
     }
 
     if (!position.trim()) {
-      Alert.alert('Hata', 'Pozisyon gerekli');
+      Alert.alert("Hata", "Pozisyon gerekli");
       return;
     }
 
     if (!salary || parseFloat(salary) < 0) {
-      Alert.alert('Hata', 'Geçerli bir maaş girin');
+      Alert.alert("Hata", "Geçerli bir maaş girin");
       return;
     }
 
@@ -60,12 +65,12 @@ export default function AddPersonelModal({ visible, onClose }: AddPersonelModalP
       salary: parseFloat(salary),
       start_date: startDate,
       is_archived: false,
-      restaurant_id: '',
+      restaurant_id: "",
     });
     setLoading(false);
 
     if (error) {
-      Alert.alert('Hata', 'Personel eklenirken bir hata oluştu');
+      Alert.alert("Hata", "Personel eklenirken bir hata oluştu");
     } else {
       resetForm();
       onClose();
@@ -73,9 +78,13 @@ export default function AddPersonelModal({ visible, onClose }: AddPersonelModalP
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+    >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.container}
       >
         <View style={styles.header}>
@@ -89,7 +98,7 @@ export default function AddPersonelModal({ visible, onClose }: AddPersonelModalP
             style={[styles.saveButton, loading && styles.saveButtonDisabled]}
           >
             <Text style={styles.saveButtonText}>
-              {loading ? 'Kaydediliyor...' : 'Kaydet'}
+              {loading ? "Kaydediliyor..." : "Kaydet"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -155,27 +164,27 @@ export default function AddPersonelModal({ visible, onClose }: AddPersonelModalP
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: "#e5e7eb",
   },
   closeButton: {
     padding: 4,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#111827",
   },
   saveButton: {
-    backgroundColor: '#3b82f6',
+    backgroundColor: "#3b82f6",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -184,47 +193,47 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   saveButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 19,
   },
   content: {
     flex: 1,
     padding: 16,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
+    fontSize: 19,
+    fontWeight: "500",
+    color: "#374151",
     marginBottom: 8,
     marginTop: 16,
   },
   input: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: "#f3f4f6",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 16,
-    color: '#111827',
+    fontSize: 19,
+    color: "#111827",
   },
   amountContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
     borderRadius: 12,
     paddingHorizontal: 16,
   },
   currencySymbol: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#6b7280',
+    fontWeight: "600",
+    color: "#6b7280",
     marginRight: 8,
   },
   amountInput: {
     flex: 1,
     fontSize: 24,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
     paddingVertical: 14,
   },
   bottomPadding: {

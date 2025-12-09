@@ -1,7 +1,14 @@
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import { useAuth } from '../../src/context/AuthContext';
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Alert,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import { useAuth } from "../../src/context/AuthContext";
 import {
   User,
   Building2,
@@ -14,66 +21,93 @@ import {
   Crown,
   Users,
   Tags,
-  FileText
-} from 'lucide-react-native';
+  FileText,
+  LucideIcon,
+} from "lucide-react-native";
+
+interface MenuItem {
+  icon: LucideIcon;
+  label: string;
+  color: string;
+  badge?: string;
+  highlight?: boolean;
+}
+
+interface MenuSection {
+  title: string;
+  items: MenuItem[];
+}
 
 export default function Ayarlar() {
   const { user, signOut } = useAuth();
 
   const handleSignOut = () => {
     Alert.alert(
-      'Çıkış Yap',
-      'Hesabınızdan çıkış yapmak istediğinize emin misiniz?',
+      "Çıkış Yap",
+      "Hesabınızdan çıkış yapmak istediğinize emin misiniz?",
       [
-        { text: 'İptal', style: 'cancel' },
+        { text: "İptal", style: "cancel" },
         {
-          text: 'Çıkış Yap',
-          style: 'destructive',
+          text: "Çıkış Yap",
+          style: "destructive",
           onPress: async () => {
             await signOut();
-            router.replace('/(auth)/login');
-          }
+            router.replace("/(auth)/login");
+          },
         },
       ]
     );
   };
 
-  const menuSections = [
+  const menuSections: MenuSection[] = [
     {
-      title: 'Hesap',
+      title: "Hesap",
       items: [
-        { icon: User, label: 'Profil Bilgileri', color: '#3b82f6' },
-        { icon: Building2, label: 'Restoran Ayarları', color: '#10b981' },
-        { icon: Users, label: 'Kullanıcı Yönetimi', color: '#8b5cf6', badge: 'PRO' },
+        { icon: User, label: "Profil Bilgileri", color: "#3b82f6" },
+        { icon: Building2, label: "Restoran Ayarları", color: "#10b981" },
+        {
+          icon: Users,
+          label: "Kullanıcı Yönetimi",
+          color: "#8b5cf6",
+          badge: "PRO",
+        },
       ],
     },
     {
-      title: 'Uygulama',
+      title: "Uygulama",
       items: [
-        { icon: Tags, label: 'Kategoriler', color: '#f59e0b' },
-        { icon: Bell, label: 'Bildirimler', color: '#ef4444' },
-        { icon: FileText, label: 'Raporlar', color: '#06b6d4' },
+        { icon: Tags, label: "Kategoriler", color: "#f59e0b" },
+        { icon: Bell, label: "Bildirimler", color: "#ef4444" },
+        { icon: FileText, label: "Raporlar", color: "#06b6d4" },
       ],
     },
     {
-      title: 'Abonelik',
+      title: "Abonelik",
       items: [
-        { icon: Crown, label: 'Pro\'ya Yükselt', color: '#f59e0b', highlight: true },
-        { icon: CreditCard, label: 'Ödeme Yönetimi', color: '#6b7280' },
+        {
+          icon: Crown,
+          label: "Pro'ya Yükselt",
+          color: "#f59e0b",
+          highlight: true,
+        },
+        { icon: CreditCard, label: "Ödeme Yönetimi", color: "#6b7280" },
       ],
     },
     {
-      title: 'Destek',
+      title: "Destek",
       items: [
-        { icon: HelpCircle, label: 'Yardım & SSS', color: '#6b7280' },
-        { icon: Shield, label: 'Gizlilik Politikası', color: '#6b7280' },
+        { icon: HelpCircle, label: "Yardım & SSS", color: "#6b7280" },
+        { icon: Shield, label: "Gizlilik Politikası", color: "#6b7280" },
       ],
     },
   ];
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.scrollView}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.title}>Ayarlar</Text>
@@ -83,12 +117,12 @@ export default function Ayarlar() {
         <TouchableOpacity style={styles.profileCard}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>
-              {user?.user_metadata?.name?.charAt(0)?.toUpperCase() || 'K'}
+              {user?.user_metadata?.name?.charAt(0)?.toUpperCase() || "K"}
             </Text>
           </View>
           <View style={styles.profileInfo}>
             <Text style={styles.profileName}>
-              {user?.user_metadata?.name || 'Kullanıcı'}
+              {user?.user_metadata?.name || "Kullanıcı"}
             </Text>
             <Text style={styles.profileEmail}>{user?.email}</Text>
             <View style={styles.planBadge}>
@@ -110,17 +144,25 @@ export default function Ayarlar() {
                     key={itemIndex}
                     style={[
                       styles.menuItem,
-                      itemIndex < section.items.length - 1 && styles.menuItemBorder,
+                      itemIndex < section.items.length - 1 &&
+                        styles.menuItemBorder,
                       item.highlight && styles.menuItemHighlight,
                     ]}
                   >
-                    <View style={[styles.menuIcon, { backgroundColor: `${item.color}15` }]}>
+                    <View
+                      style={[
+                        styles.menuIcon,
+                        { backgroundColor: `${item.color}15` },
+                      ]}
+                    >
                       <IconComponent size={20} color={item.color} />
                     </View>
-                    <Text style={[
-                      styles.menuLabel,
-                      item.highlight && styles.menuLabelHighlight
-                    ]}>
+                    <Text
+                      style={[
+                        styles.menuLabel,
+                        item.highlight && styles.menuLabelHighlight,
+                      ]}
+                    >
                       {item.label}
                     </Text>
                     {item.badge && (
@@ -152,7 +194,7 @@ export default function Ayarlar() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f9fafb',
+    backgroundColor: "#f9fafb",
   },
   scrollView: {
     flex: 1,
@@ -163,18 +205,18 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 28,
-    fontWeight: 'bold',
-    color: '#111827',
+    fontWeight: "bold",
+    color: "#111827",
   },
   profileCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
     marginHorizontal: 16,
     borderRadius: 16,
     padding: 16,
     marginBottom: 24,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -184,110 +226,110 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: '#10b981',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "#10b981",
+    justifyContent: "center",
+    alignItems: "center",
   },
   avatarText: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#fff',
+    fontWeight: "bold",
+    color: "#fff",
   },
   profileInfo: {
     flex: 1,
     marginLeft: 12,
   },
   profileName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#111827",
   },
   profileEmail: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 19,
+    color: "#6b7280",
     marginTop: 2,
   },
   planBadge: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: "#f3f4f6",
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 6,
-    alignSelf: 'flex-start',
+    alignSelf: "flex-start",
     marginTop: 8,
   },
   planBadgeText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#6b7280',
+    fontSize: 19,
+    fontWeight: "600",
+    color: "#6b7280",
   },
   section: {
     marginBottom: 24,
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6b7280',
+    fontSize: 19,
+    fontWeight: "600",
+    color: "#6b7280",
     marginLeft: 16,
     marginBottom: 8,
-    textTransform: 'uppercase',
+    textTransform: "uppercase",
     letterSpacing: 0.5,
   },
   menuCard: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     marginHorizontal: 16,
     borderRadius: 16,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
     elevation: 1,
   },
   menuItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 16,
   },
   menuItemBorder: {
     borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
+    borderBottomColor: "#f3f4f6",
   },
   menuItemHighlight: {
-    backgroundColor: '#fffbeb',
+    backgroundColor: "#fffbeb",
   },
   menuIcon: {
     width: 40,
     height: 40,
     borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   menuLabel: {
     flex: 1,
-    fontSize: 16,
-    color: '#111827',
+    fontSize: 19,
+    color: "#111827",
     marginLeft: 12,
   },
   menuLabelHighlight: {
-    fontWeight: '600',
-    color: '#f59e0b',
+    fontWeight: "600",
+    color: "#f59e0b",
   },
   badge: {
-    backgroundColor: '#fef3c7',
+    backgroundColor: "#fef3c7",
     paddingHorizontal: 8,
     paddingVertical: 2,
     borderRadius: 4,
     marginRight: 8,
   },
   badgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#f59e0b',
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#f59e0b",
   },
   logoutButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#fef2f2',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "#fef2f2",
     marginHorizontal: 16,
     borderRadius: 12,
     padding: 16,
@@ -295,14 +337,14 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   logoutText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#ef4444',
+    fontSize: 19,
+    fontWeight: "600",
+    color: "#ef4444",
   },
   version: {
-    textAlign: 'center',
-    fontSize: 12,
-    color: '#9ca3af',
+    textAlign: "center",
+    fontSize: 19,
+    color: "#9ca3af",
     marginBottom: 32,
   },
 });

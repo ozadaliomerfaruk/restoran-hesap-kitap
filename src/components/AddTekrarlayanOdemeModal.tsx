@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -10,33 +10,55 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-} from 'react-native';
-import { X, ChevronDown } from 'lucide-react-native';
-import { useStore } from '../store/useStore';
-import { OdemeFrequency } from '../types';
+} from "react-native";
+import { X, ChevronDown } from "lucide-react-native";
+import { useStore } from "../store/useStore";
+import { OdemePeriod } from "../types";
 
 interface AddTekrarlayanOdemeModalProps {
   visible: boolean;
   onClose: () => void;
 }
 
-const frequencies: { value: OdemeFrequency; label: string }[] = [
-  { value: 'gunluk', label: 'Günlük' },
-  { value: 'haftalik', label: 'Haftalık' },
-  { value: 'aylik', label: 'Aylık' },
-  { value: 'yillik', label: 'Yıllık' },
+const periods: { value: OdemePeriod; label: string }[] = [
+  { value: "gunluk", label: "Günlük" },
+  { value: "haftalik", label: "Haftalık" },
+  { value: "aylik", label: "Aylık" },
+  { value: "2aylik", label: "2 Ayda Bir" },
+  { value: "3aylik", label: "3 Ayda Bir" },
+  { value: "6aylik", label: "6 Ayda Bir" },
+  { value: "yillik", label: "Yıllık" },
 ];
 
-export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrarlayanOdemeModalProps) {
-  const { addTekrarlayanOdeme, kasalar, cariler, kategoriler, fetchKasalar, fetchCariler, fetchKategoriler } = useStore();
+export default function AddTekrarlayanOdemeModal({
+  visible,
+  onClose,
+}: AddTekrarlayanOdemeModalProps) {
+  const {
+    addTekrarlayanOdeme,
+    kasalar,
+    cariler,
+    kategoriler,
+    fetchKasalar,
+    fetchCariler,
+    fetchKategoriler,
+  } = useStore();
   const [loading, setLoading] = useState(false);
-  const [name, setName] = useState('');
-  const [amount, setAmount] = useState('');
-  const [frequency, setFrequency] = useState<OdemeFrequency>('aylik');
-  const [nextDate, setNextDate] = useState(new Date().toISOString().split('T')[0]);
-  const [selectedKasa, setSelectedKasa] = useState<string>('');
-  const [selectedCari, setSelectedCari] = useState<string>('');
-  const [selectedKategori, setSelectedKategori] = useState<string>('');
+  const [title, setTitle] = useState("");
+  const [amount, setAmount] = useState("");
+  const [period, setPeriod] = useState<OdemePeriod>("aylik");
+  const [nextDate, setNextDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [startDate, setStartDate] = useState(
+    new Date().toISOString().split("T")[0]
+  );
+  const [reminderDays, setReminderDays] = useState("3");
+  const [autoCreate, setAutoCreate] = useState(false);
+  const [description, setDescription] = useState("");
+  const [selectedKasa, setSelectedKasa] = useState<string>("");
+  const [selectedCari, setSelectedCari] = useState<string>("");
+  const [selectedKategori, setSelectedKategori] = useState<string>("");
   const [showKasaPicker, setShowKasaPicker] = useState(false);
   const [showCariPicker, setShowCariPicker] = useState(false);
   const [showKategoriPicker, setShowKategoriPicker] = useState(false);
@@ -50,57 +72,73 @@ export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrar
   }, [visible]);
 
   const resetForm = () => {
-    setName('');
-    setAmount('');
-    setFrequency('aylik');
-    setNextDate(new Date().toISOString().split('T')[0]);
-    setSelectedKasa('');
-    setSelectedCari('');
-    setSelectedKategori('');
+    setTitle("");
+    setAmount("");
+    setPeriod("aylik");
+    setNextDate(new Date().toISOString().split("T")[0]);
+    setStartDate(new Date().toISOString().split("T")[0]);
+    setReminderDays("3");
+    setAutoCreate(false);
+    setDescription("");
+    setSelectedKasa("");
+    setSelectedCari("");
+    setSelectedKategori("");
   };
 
   const handleSubmit = async () => {
-    if (!name.trim()) {
-      Alert.alert('Hata', 'Ödeme adı gerekli');
+    if (!title.trim()) {
+      Alert.alert("Hata", "Ödeme adı gerekli");
       return;
     }
 
     if (!amount || parseFloat(amount) <= 0) {
-      Alert.alert('Hata', 'Geçerli bir tutar girin');
+      Alert.alert("Hata", "Geçerli bir tutar girin");
       return;
     }
 
     setLoading(true);
     const { error } = await addTekrarlayanOdeme({
-      name: name.trim(),
+      title: title.trim(),
+      description: description.trim() || undefined,
       amount: parseFloat(amount),
-      frequency,
+      period,
+      start_date: startDate,
       next_date: nextDate,
+      reminder_days: parseInt(reminderDays) || 3,
+      auto_create: autoCreate,
       kasa_id: selectedKasa || undefined,
       cari_id: selectedCari || undefined,
       kategori_id: selectedKategori || undefined,
       is_active: true,
-      restaurant_id: '',
+      restaurant_id: "",
     });
     setLoading(false);
 
     if (error) {
-      Alert.alert('Hata', 'Ödeme eklenirken bir hata oluştu');
+      Alert.alert("Hata", "Ödeme eklenirken bir hata oluştu");
     } else {
       resetForm();
       onClose();
     }
   };
 
-  const giderKategoriler = kategoriler.filter(k => k.type === 'gider');
-  const selectedKasaName = kasalar.find(k => k.id === selectedKasa)?.name || 'Kasa Seç (Opsiyonel)';
-  const selectedCariName = cariler.find(c => c.id === selectedCari)?.name || 'Cari Seç (Opsiyonel)';
-  const selectedKategoriName = kategoriler.find(k => k.id === selectedKategori)?.name || 'Kategori Seç (Opsiyonel)';
+  const giderKategoriler = kategoriler.filter((k) => k.type === "gider");
+  const selectedKasaName =
+    kasalar.find((k) => k.id === selectedKasa)?.name || "Kasa Seç (Opsiyonel)";
+  const selectedCariName =
+    cariler.find((c) => c.id === selectedCari)?.name || "Cari Seç (Opsiyonel)";
+  const selectedKategoriName =
+    kategoriler.find((k) => k.id === selectedKategori)?.name ||
+    "Kategori Seç (Opsiyonel)";
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+    >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.container}
       >
         <View style={styles.header}>
@@ -114,7 +152,7 @@ export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrar
             style={[styles.saveButton, loading && styles.saveButtonDisabled]}
           >
             <Text style={styles.saveButtonText}>
-              {loading ? 'Kaydediliyor...' : 'Kaydet'}
+              {loading ? "Kaydediliyor..." : "Kaydet"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -123,9 +161,18 @@ export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrar
           <Text style={styles.label}>Ödeme Adı *</Text>
           <TextInput
             style={styles.input}
-            value={name}
-            onChangeText={setName}
+            value={title}
+            onChangeText={setTitle}
             placeholder="Örn: Kira, Elektrik, Sigorta"
+            placeholderTextColor="#9ca3af"
+          />
+
+          <Text style={styles.label}>Açıklama</Text>
+          <TextInput
+            style={styles.input}
+            value={description}
+            onChangeText={setDescription}
+            placeholder="Opsiyonel açıklama"
             placeholderTextColor="#9ca3af"
           />
 
@@ -143,20 +190,22 @@ export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrar
           </View>
 
           <Text style={styles.label}>Tekrar Sıklığı</Text>
-          <View style={styles.frequencyGrid}>
-            {frequencies.map((item) => (
+          <View style={styles.periodGrid}>
+            {periods.map((item) => (
               <TouchableOpacity
                 key={item.value}
                 style={[
-                  styles.frequencyButton,
-                  frequency === item.value && styles.frequencyButtonActive
+                  styles.periodButton,
+                  period === item.value && styles.periodButtonActive,
                 ]}
-                onPress={() => setFrequency(item.value)}
+                onPress={() => setPeriod(item.value)}
               >
-                <Text style={[
-                  styles.frequencyText,
-                  frequency === item.value && styles.frequencyTextActive
-                ]}>
+                <Text
+                  style={[
+                    styles.periodText,
+                    period === item.value && styles.periodTextActive,
+                  ]}
+                >
                   {item.label}
                 </Text>
               </TouchableOpacity>
@@ -177,7 +226,12 @@ export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrar
             style={styles.pickerButton}
             onPress={() => setShowKasaPicker(true)}
           >
-            <Text style={[styles.pickerButtonText, !selectedKasa && styles.pickerButtonPlaceholder]}>
+            <Text
+              style={[
+                styles.pickerButtonText,
+                !selectedKasa && styles.pickerButtonPlaceholder,
+              ]}
+            >
               {selectedKasaName}
             </Text>
             <ChevronDown size={20} color="#6b7280" />
@@ -188,7 +242,12 @@ export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrar
             style={styles.pickerButton}
             onPress={() => setShowCariPicker(true)}
           >
-            <Text style={[styles.pickerButtonText, !selectedCari && styles.pickerButtonPlaceholder]}>
+            <Text
+              style={[
+                styles.pickerButtonText,
+                !selectedCari && styles.pickerButtonPlaceholder,
+              ]}
+            >
               {selectedCariName}
             </Text>
             <ChevronDown size={20} color="#6b7280" />
@@ -199,7 +258,12 @@ export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrar
             style={styles.pickerButton}
             onPress={() => setShowKategoriPicker(true)}
           >
-            <Text style={[styles.pickerButtonText, !selectedKategori && styles.pickerButtonPlaceholder]}>
+            <Text
+              style={[
+                styles.pickerButtonText,
+                !selectedKategori && styles.pickerButtonPlaceholder,
+              ]}
+            >
               {selectedKategoriName}
             </Text>
             <ChevronDown size={20} color="#6b7280" />
@@ -219,9 +283,12 @@ export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrar
               <Text style={styles.pickerTitle}>Kasa Seç</Text>
               <ScrollView style={styles.pickerList}>
                 <TouchableOpacity
-                  style={[styles.pickerItem, !selectedKasa && styles.pickerItemSelected]}
+                  style={[
+                    styles.pickerItem,
+                    !selectedKasa && styles.pickerItemSelected,
+                  ]}
                   onPress={() => {
-                    setSelectedKasa('');
+                    setSelectedKasa("");
                     setShowKasaPicker(false);
                   }}
                 >
@@ -230,7 +297,10 @@ export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrar
                 {kasalar.map((kasa) => (
                   <TouchableOpacity
                     key={kasa.id}
-                    style={[styles.pickerItem, selectedKasa === kasa.id && styles.pickerItemSelected]}
+                    style={[
+                      styles.pickerItem,
+                      selectedKasa === kasa.id && styles.pickerItemSelected,
+                    ]}
                     onPress={() => {
                       setSelectedKasa(kasa.id);
                       setShowKasaPicker(false);
@@ -255,9 +325,12 @@ export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrar
               <Text style={styles.pickerTitle}>Cari Seç</Text>
               <ScrollView style={styles.pickerList}>
                 <TouchableOpacity
-                  style={[styles.pickerItem, !selectedCari && styles.pickerItemSelected]}
+                  style={[
+                    styles.pickerItem,
+                    !selectedCari && styles.pickerItemSelected,
+                  ]}
                   onPress={() => {
-                    setSelectedCari('');
+                    setSelectedCari("");
                     setShowCariPicker(false);
                   }}
                 >
@@ -266,14 +339,19 @@ export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrar
                 {cariler.map((cari) => (
                   <TouchableOpacity
                     key={cari.id}
-                    style={[styles.pickerItem, selectedCari === cari.id && styles.pickerItemSelected]}
+                    style={[
+                      styles.pickerItem,
+                      selectedCari === cari.id && styles.pickerItemSelected,
+                    ]}
                     onPress={() => {
                       setSelectedCari(cari.id);
                       setShowCariPicker(false);
                     }}
                   >
                     <Text style={styles.pickerItemText}>{cari.name}</Text>
-                    <Text style={styles.pickerItemSubtext}>{cari.type === 'tedarikci' ? 'Tedarikçi' : 'Müşteri'}</Text>
+                    <Text style={styles.pickerItemSubtext}>
+                      {cari.type === "tedarikci" ? "Tedarikçi" : "Müşteri"}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -292,9 +370,12 @@ export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrar
               <Text style={styles.pickerTitle}>Kategori Seç</Text>
               <ScrollView style={styles.pickerList}>
                 <TouchableOpacity
-                  style={[styles.pickerItem, !selectedKategori && styles.pickerItemSelected]}
+                  style={[
+                    styles.pickerItem,
+                    !selectedKategori && styles.pickerItemSelected,
+                  ]}
                   onPress={() => {
-                    setSelectedKategori('');
+                    setSelectedKategori("");
                     setShowKategoriPicker(false);
                   }}
                 >
@@ -303,7 +384,11 @@ export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrar
                 {giderKategoriler.map((kategori) => (
                   <TouchableOpacity
                     key={kategori.id}
-                    style={[styles.pickerItem, selectedKategori === kategori.id && styles.pickerItemSelected]}
+                    style={[
+                      styles.pickerItem,
+                      selectedKategori === kategori.id &&
+                        styles.pickerItemSelected,
+                    ]}
                     onPress={() => {
                       setSelectedKategori(kategori.id);
                       setShowKategoriPicker(false);
@@ -324,27 +409,27 @@ export default function AddTekrarlayanOdemeModal({ visible, onClose }: AddTekrar
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: "#e5e7eb",
   },
   closeButton: {
     padding: 4,
   },
   title: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#111827',
+    fontSize: 19,
+    fontWeight: "600",
+    color: "#111827",
   },
   saveButton: {
-    backgroundColor: '#8b5cf6',
+    backgroundColor: "#8b5cf6",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -353,131 +438,132 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   saveButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 19,
   },
   content: {
     flex: 1,
     padding: 16,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
+    fontSize: 19,
+    fontWeight: "500",
+    color: "#374151",
     marginBottom: 8,
     marginTop: 16,
   },
   input: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: "#f3f4f6",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 16,
-    color: '#111827',
+    fontSize: 19,
+    color: "#111827",
   },
   amountContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
     borderRadius: 12,
     paddingHorizontal: 16,
   },
   currencySymbol: {
     fontSize: 24,
-    fontWeight: '600',
-    color: '#6b7280',
+    fontWeight: "600",
+    color: "#6b7280",
     marginRight: 8,
   },
   amountInput: {
     flex: 1,
     fontSize: 32,
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: "700",
+    color: "#111827",
     paddingVertical: 16,
   },
-  frequencyGrid: {
-    flexDirection: 'row',
+  periodGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 8,
   },
-  frequencyButton: {
-    flex: 1,
-    paddingVertical: 12,
+  periodButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: 10,
-    backgroundColor: '#f3f4f6',
-    alignItems: 'center',
+    backgroundColor: "#f3f4f6",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: '#e5e7eb',
+    borderColor: "#e5e7eb",
   },
-  frequencyButtonActive: {
-    backgroundColor: '#8b5cf6',
-    borderColor: '#8b5cf6',
+  periodButtonActive: {
+    backgroundColor: "#8b5cf6",
+    borderColor: "#8b5cf6",
   },
-  frequencyText: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#6b7280',
+  periodText: {
+    fontSize: 19,
+    fontWeight: "500",
+    color: "#6b7280",
   },
-  frequencyTextActive: {
-    color: '#fff',
+  periodTextActive: {
+    color: "#fff",
   },
   pickerButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#f3f4f6',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#f3f4f6",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
   },
   pickerButtonText: {
-    fontSize: 16,
-    color: '#111827',
+    fontSize: 19,
+    color: "#111827",
   },
   pickerButtonPlaceholder: {
-    color: '#9ca3af',
+    color: "#9ca3af",
   },
   pickerOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "flex-end",
   },
   pickerModal: {
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    maxHeight: '60%',
+    maxHeight: "60%",
   },
   pickerTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
-    textAlign: 'center',
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#111827",
+    textAlign: "center",
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: "#e5e7eb",
   },
   pickerList: {
     padding: 8,
   },
   pickerItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 14,
     borderRadius: 8,
   },
   pickerItemSelected: {
-    backgroundColor: '#ede9fe',
+    backgroundColor: "#ede9fe",
   },
   pickerItemText: {
-    fontSize: 16,
-    color: '#111827',
+    fontSize: 19,
+    color: "#111827",
   },
   pickerItemSubtext: {
-    fontSize: 14,
-    color: '#6b7280',
+    fontSize: 19,
+    color: "#6b7280",
   },
   bottomPadding: {
     height: 40,

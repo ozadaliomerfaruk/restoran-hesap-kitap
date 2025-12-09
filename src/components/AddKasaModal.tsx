@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState } from "react";
 import {
   View,
   Text,
@@ -10,10 +10,16 @@ import {
   Alert,
   KeyboardAvoidingView,
   Platform,
-} from 'react-native';
-import { X, Wallet, Building2, CreditCard, PiggyBank } from 'lucide-react-native';
-import { useStore } from '../store/useStore';
-import { KasaType } from '../types';
+} from "react-native";
+import {
+  X,
+  Wallet,
+  Building2,
+  CreditCard,
+  PiggyBank,
+} from "lucide-react-native";
+import { useStore } from "../store/useStore";
+import { KasaType } from "../types";
 
 interface AddKasaModalProps {
   visible: boolean;
@@ -21,35 +27,53 @@ interface AddKasaModalProps {
 }
 
 const kasaTypes = [
-  { type: 'nakit' as KasaType, label: 'Nakit', icon: Wallet, color: '#10b981' },
-  { type: 'banka' as KasaType, label: 'Banka', icon: Building2, color: '#3b82f6' },
-  { type: 'kredi_karti' as KasaType, label: 'Kredi Kartı', icon: CreditCard, color: '#f59e0b' },
-  { type: 'birikim' as KasaType, label: 'Birikim', icon: PiggyBank, color: '#8b5cf6' },
+  { type: "nakit" as KasaType, label: "Nakit", icon: Wallet, color: "#10b981" },
+  {
+    type: "banka" as KasaType,
+    label: "Banka",
+    icon: Building2,
+    color: "#3b82f6",
+  },
+  {
+    type: "kredi_karti" as KasaType,
+    label: "Kredi Kartı",
+    icon: CreditCard,
+    color: "#f59e0b",
+  },
+  {
+    type: "birikim" as KasaType,
+    label: "Birikim",
+    icon: PiggyBank,
+    color: "#8b5cf6",
+  },
 ];
 
 export default function AddKasaModal({ visible, onClose }: AddKasaModalProps) {
   const { addKasa, profile } = useStore();
   const [loading, setLoading] = useState(false);
-  const [name, setName] = useState('');
-  const [type, setType] = useState<KasaType>('nakit');
-  const [currency, setCurrency] = useState<'TRY' | 'USD' | 'EUR'>('TRY');
+  const [name, setName] = useState("");
+  const [type, setType] = useState<KasaType>("nakit");
+  const [currency, setCurrency] = useState<"TRY" | "USD" | "EUR">("TRY");
 
-  const isPro = profile?.plan === 'pro' || profile?.plan === 'premium';
+  const isPro = profile?.plan === "pro" || profile?.plan === "premium";
 
   const resetForm = () => {
-    setName('');
-    setType('nakit');
-    setCurrency('TRY');
+    setName("");
+    setType("nakit");
+    setCurrency("TRY");
   };
 
   const handleSubmit = async () => {
     if (!name.trim()) {
-      Alert.alert('Hata', 'Kasa adı zorunludur');
+      Alert.alert("Hata", "Kasa adı zorunludur");
       return;
     }
 
-    if (type === 'birikim' && !isPro) {
-      Alert.alert('Pro Gerekli', 'Birikim kasası açmak için Pro plana yükseltmeniz gerekiyor');
+    if (type === "birikim" && !isPro) {
+      Alert.alert(
+        "Pro Gerekli",
+        "Birikim kasası açmak için Pro plana yükseltmeniz gerekiyor"
+      );
       return;
     }
 
@@ -60,12 +84,12 @@ export default function AddKasaModal({ visible, onClose }: AddKasaModalProps) {
       currency,
       is_active: true,
       is_archived: false,
-      restaurant_id: '',
+      restaurant_id: "",
     });
     setLoading(false);
 
     if (error) {
-      Alert.alert('Hata', 'Kasa eklenirken bir hata oluştu');
+      Alert.alert("Hata", "Kasa eklenirken bir hata oluştu");
     } else {
       resetForm();
       onClose();
@@ -73,9 +97,13 @@ export default function AddKasaModal({ visible, onClose }: AddKasaModalProps) {
   };
 
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet">
+    <Modal
+      visible={visible}
+      animationType="slide"
+      presentationStyle="pageSheet"
+    >
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={styles.container}
       >
         <View style={styles.header}>
@@ -89,7 +117,7 @@ export default function AddKasaModal({ visible, onClose }: AddKasaModalProps) {
             style={[styles.saveButton, loading && styles.saveButtonDisabled]}
           >
             <Text style={styles.saveButtonText}>
-              {loading ? 'Kaydediliyor...' : 'Kaydet'}
+              {loading ? "Kaydediliyor..." : "Kaydet"}
             </Text>
           </TouchableOpacity>
         </View>
@@ -100,7 +128,7 @@ export default function AddKasaModal({ visible, onClose }: AddKasaModalProps) {
           <View style={styles.typeGrid}>
             {kasaTypes.map((item) => {
               const IconComponent = item.icon;
-              const isDisabled = item.type === 'birikim' && !isPro;
+              const isDisabled = item.type === "birikim" && !isPro;
               const isSelected = type === item.type;
 
               return (
@@ -108,16 +136,29 @@ export default function AddKasaModal({ visible, onClose }: AddKasaModalProps) {
                   key={item.type}
                   style={[
                     styles.typeCard,
-                    isSelected && { borderColor: item.color, backgroundColor: `${item.color}10` },
+                    isSelected && {
+                      borderColor: item.color,
+                      backgroundColor: `${item.color}10`,
+                    },
                     isDisabled && styles.typeCardDisabled,
                   ]}
                   onPress={() => !isDisabled && setType(item.type)}
                   disabled={isDisabled}
                 >
-                  <View style={[styles.typeIcon, { backgroundColor: `${item.color}20` }]}>
+                  <View
+                    style={[
+                      styles.typeIcon,
+                      { backgroundColor: `${item.color}20` },
+                    ]}
+                  >
                     <IconComponent size={24} color={item.color} />
                   </View>
-                  <Text style={[styles.typeLabel, isDisabled && styles.typeLabelDisabled]}>
+                  <Text
+                    style={[
+                      styles.typeLabel,
+                      isDisabled && styles.typeLabelDisabled,
+                    ]}
+                  >
                     {item.label}
                   </Text>
                   {isDisabled && (
@@ -143,8 +184,8 @@ export default function AddKasaModal({ visible, onClose }: AddKasaModalProps) {
           {/* Para Birimi */}
           <Text style={styles.label}>Para Birimi</Text>
           <View style={styles.currencyButtons}>
-            {(['TRY', 'USD', 'EUR'] as const).map((curr) => {
-              const isDisabled = curr !== 'TRY' && !isPro;
+            {(["TRY", "USD", "EUR"] as const).map((curr) => {
+              const isDisabled = curr !== "TRY" && !isPro;
               return (
                 <TouchableOpacity
                   key={curr}
@@ -163,11 +204,13 @@ export default function AddKasaModal({ visible, onClose }: AddKasaModalProps) {
                       isDisabled && styles.currencyButtonTextDisabled,
                     ]}
                   >
-                    {curr === 'TRY' ? '₺ TRY' : curr === 'USD' ? '$ USD' : '€ EUR'}
+                    {curr === "TRY"
+                      ? "₺ TRY"
+                      : curr === "USD"
+                      ? "$ USD"
+                      : "€ EUR"}
                   </Text>
-                  {isDisabled && (
-                    <Text style={styles.proTag}>PRO</Text>
-                  )}
+                  {isDisabled && <Text style={styles.proTag}>PRO</Text>}
                 </TouchableOpacity>
               );
             })}
@@ -183,27 +226,27 @@ export default function AddKasaModal({ visible, onClose }: AddKasaModalProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: "#fff",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#e5e7eb',
+    borderBottomColor: "#e5e7eb",
   },
   closeButton: {
     padding: 4,
   },
   title: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111827',
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#111827",
   },
   saveButton: {
-    backgroundColor: '#10b981',
+    backgroundColor: "#10b981",
     paddingHorizontal: 16,
     paddingVertical: 8,
     borderRadius: 8,
@@ -212,42 +255,42 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   saveButtonText: {
-    color: '#fff',
-    fontWeight: '600',
-    fontSize: 14,
+    color: "#fff",
+    fontWeight: "600",
+    fontSize: 19,
   },
   content: {
     flex: 1,
     padding: 16,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: '#374151',
+    fontSize: 19,
+    fontWeight: "500",
+    color: "#374151",
     marginBottom: 12,
     marginTop: 20,
   },
   input: {
-    backgroundColor: '#f3f4f6',
+    backgroundColor: "#f3f4f6",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 16,
-    color: '#111827',
+    fontSize: 19,
+    color: "#111827",
   },
   typeGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+    flexDirection: "row",
+    flexWrap: "wrap",
     gap: 12,
   },
   typeCard: {
-    width: '47%',
-    backgroundColor: '#f9fafb',
+    width: "47%",
+    backgroundColor: "#f9fafb",
     borderRadius: 12,
     padding: 16,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   typeCardDisabled: {
     opacity: 0.6,
@@ -256,67 +299,67 @@ const styles = StyleSheet.create({
     width: 48,
     height: 48,
     borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 8,
   },
   typeLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#111827',
+    fontSize: 19,
+    fontWeight: "600",
+    color: "#111827",
   },
   typeLabelDisabled: {
-    color: '#9ca3af',
+    color: "#9ca3af",
   },
   proBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: 8,
     right: 8,
-    backgroundColor: '#fef3c7',
+    backgroundColor: "#fef3c7",
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
   },
   proBadgeText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: '#f59e0b',
+    fontSize: 20,
+    fontWeight: "700",
+    color: "#f59e0b",
   },
   currencyButtons: {
-    flexDirection: 'row',
+    flexDirection: "row",
     gap: 12,
   },
   currencyButton: {
     flex: 1,
-    backgroundColor: '#f3f4f6',
+    backgroundColor: "#f3f4f6",
     borderRadius: 12,
     paddingVertical: 14,
-    alignItems: 'center',
+    alignItems: "center",
     borderWidth: 2,
-    borderColor: 'transparent',
+    borderColor: "transparent",
   },
   currencyButtonActive: {
-    backgroundColor: '#10b981',
-    borderColor: '#10b981',
+    backgroundColor: "#10b981",
+    borderColor: "#10b981",
   },
   currencyButtonDisabled: {
     opacity: 0.6,
   },
   currencyButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#6b7280',
+    fontSize: 19,
+    fontWeight: "600",
+    color: "#6b7280",
   },
   currencyButtonTextActive: {
-    color: '#fff',
+    color: "#fff",
   },
   currencyButtonTextDisabled: {
-    color: '#9ca3af',
+    color: "#9ca3af",
   },
   proTag: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#f59e0b',
+    fontSize: 12,
+    fontWeight: "700",
+    color: "#f59e0b",
     marginTop: 2,
   },
   bottomPadding: {
