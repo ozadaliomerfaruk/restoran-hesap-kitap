@@ -470,30 +470,72 @@ export const useStore = create<AppState>((set, get) => ({
 
     if (!error) {
       // Update kasa balance - SADECE kasa_id varsa
+      // gelir, tahsilat: kasaya para girer (+)
+      // gider, odeme: kasadan para çıkar (-)
+      // iade, satis, musteri_iade: kasa değişmez
       if (islem.kasa_id && islem.type !== "transfer") {
-        const multiplier =
-          islem.type === "gelir" || islem.type === "tahsilat" ? 1 : -1;
-        await supabase.rpc("update_kasa_balance", {
-          kasa_id: islem.kasa_id,
-          amount: islem.amount * multiplier,
-        });
+        let kasaMultiplier = 0;
+        if (islem.type === "gelir" || islem.type === "tahsilat") {
+          kasaMultiplier = 1; // Kasaya para girer
+        } else if (islem.type === "gider" || islem.type === "odeme") {
+          kasaMultiplier = -1; // Kasadan para çıkar
+        }
+        // iade, satis, musteri_iade için kasa değişmez (multiplier = 0)
+
+        if (kasaMultiplier !== 0) {
+          await supabase.rpc("update_kasa_balance", {
+            kasa_id: islem.kasa_id,
+            amount: islem.amount * kasaMultiplier,
+          });
+        }
       }
 
       // Update cari balance if applicable
-      // gider (alış): borcumuz artar (+)
-      // gelir (iade): borcumuz azalır (-)
-      // odeme: borcumuz azalır (-)
-      // tahsilat: müşteri borcu azalır (-)
+      // TEDARİKÇİ İŞLEMLERİ:
+      // - gider (alış): tedarikçiye borcumuz artar (+)
+      // - iade (tedarikçi iadesi): tedarikçiye borcumuz azalır (-)
+      // - odeme: tedarikçiye ödeme yaptık, borcumuz azalır (-)
+      // - tahsilat: tedarikçiden para aldık (borç verdik), borcumuz artar (+)
+      //
+      // MÜŞTERİ İŞLEMLERİ:
+      // - satis: müşteriye sattık, müşteri borcu artar (+)
+      // - musteri_iade: müşteri iade etti, müşteri borcu azalır (-)
+      // - odeme: müşteriye para verdik (avans vb), müşteri borcu artar (+)
+      // - tahsilat: müşteriden tahsilat aldık, müşteri borcu azalır (-)
       if (islem.cari_id) {
+        // Cari tipini al
+        const { data: cariData } = await supabase
+          .from("cariler")
+          .select("type")
+          .eq("id", islem.cari_id)
+          .single();
+
+        const cariType = cariData?.type;
         let cariMultiplier = 0;
+
+        // Borcu artıran işlemler
         if (islem.type === "gider") {
           cariMultiplier = 1; // Alış yaptık, tedarikçiye borcumuz arttı
+        } else if (islem.type === "satis") {
+          cariMultiplier = 1; // Satış yaptık, müşteri borcu arttı
+        }
+        // Borcu azaltan işlemler
+        else if (islem.type === "iade") {
+          cariMultiplier = -1; // Tedarikçi iadesi, borcumuz azaldı
+        } else if (islem.type === "musteri_iade") {
+          cariMultiplier = -1; // Müşteri iadesi, müşteri borcu azaldı
         } else if (islem.type === "gelir") {
-          cariMultiplier = -1; // İade aldık, tedarikçiye borcumuz azaldı
-        } else if (islem.type === "odeme") {
-          cariMultiplier = -1; // Ödeme yaptık, borcumuz azaldı
+          cariMultiplier = -1; // Gelir aldık, borç azaldı
+        }
+        // Ödeme ve tahsilat - cari tipine göre farklı davranır
+        else if (islem.type === "odeme") {
+          // Tedarikçiye ödeme: borcumuz azalır
+          // Müşteriye ödeme: müşteri borcu artar (avans verdik)
+          cariMultiplier = cariType === "tedarikci" ? -1 : 1;
         } else if (islem.type === "tahsilat") {
-          cariMultiplier = -1; // Tahsilat aldık, müşteri borcu azaldı
+          // Tedarikçiden tahsilat: borcumuz artar (ona borç verdik)
+          // Müşteriden tahsilat: müşteri borcu azalır
+          cariMultiplier = cariType === "tedarikci" ? 1 : -1;
         }
 
         if (cariMultiplier !== 0) {
@@ -532,27 +574,59 @@ export const useStore = create<AppState>((set, get) => ({
 
     if (!error && islem) {
       // Kasa bakiyesini geri al - SADECE kasa_id varsa
+      // Silme işleminde tam tersi yapılır
       if (islem.kasa_id && islem.type !== "transfer") {
-        const multiplier =
-          islem.type === "gelir" || islem.type === "tahsilat" ? -1 : 1;
-        await supabase.rpc("update_kasa_balance", {
-          kasa_id: islem.kasa_id,
-          amount: islem.amount * multiplier,
-        });
+        let kasaMultiplier = 0;
+        if (islem.type === "gelir" || islem.type === "tahsilat") {
+          kasaMultiplier = -1; // Kasaya giren para geri alınır
+        } else if (islem.type === "gider" || islem.type === "odeme") {
+          kasaMultiplier = 1; // Kasadan çıkan para geri alınır
+        }
+
+        if (kasaMultiplier !== 0) {
+          await supabase.rpc("update_kasa_balance", {
+            kasa_id: islem.kasa_id,
+            amount: islem.amount * kasaMultiplier,
+          });
+        }
       }
 
       // Cari bakiyesini geri al
       // Silme işleminde tam tersi yapılır
       if (islem.cari_id) {
+        // Cari tipini al
+        const { data: cariData } = await supabase
+          .from("cariler")
+          .select("type")
+          .eq("id", islem.cari_id)
+          .single();
+
+        const cariType = cariData?.type;
         let cariMultiplier = 0;
+
+        // Borcu artırmış olan işlemler silindi → borç azalır
         if (islem.type === "gider") {
           cariMultiplier = -1; // Alış silindi, borcumuz azaldı
+        } else if (islem.type === "satis") {
+          cariMultiplier = -1; // Satış silindi, müşteri borcu azaldı
+        }
+        // Borcu azaltmış olan işlemler silindi → borç artar
+        else if (islem.type === "iade") {
+          cariMultiplier = 1; // Tedarikçi iadesi silindi, borcumuz tekrar arttı
+        } else if (islem.type === "musteri_iade") {
+          cariMultiplier = 1; // Müşteri iadesi silindi, müşteri borcu tekrar arttı
         } else if (islem.type === "gelir") {
-          cariMultiplier = 1; // İade silindi, borcumuz tekrar arttı
-        } else if (islem.type === "odeme") {
-          cariMultiplier = 1; // Ödeme silindi, borcumuz tekrar arttı
+          cariMultiplier = 1; // Gelir silindi, borç tekrar arttı
+        }
+        // Ödeme ve tahsilat - cari tipine göre farklı davranır (silmede tersi)
+        else if (islem.type === "odeme") {
+          // Tedarikçiye ödeme silindi: borcumuz tekrar arttı
+          // Müşteriye ödeme silindi: müşteri borcu azaldı
+          cariMultiplier = cariType === "tedarikci" ? 1 : -1;
         } else if (islem.type === "tahsilat") {
-          cariMultiplier = 1; // Tahsilat silindi, müşteri borcu tekrar arttı
+          // Tedarikçiden tahsilat silindi: borcumuz azaldı
+          // Müşteriden tahsilat silindi: müşteri borcu tekrar arttı
+          cariMultiplier = cariType === "tedarikci" ? -1 : 1;
         }
 
         if (cariMultiplier !== 0) {

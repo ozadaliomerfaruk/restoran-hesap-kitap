@@ -12,16 +12,14 @@ import {
   Platform,
   UIManager,
   Modal,
-  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
+import DateTimePicker from "@react-native-community/datetimepicker";
 import { useAuth } from "../../src/context/AuthContext";
 import { useStore } from "../../src/store/useStore";
 import GunlukCiroModal from "../../src/components/GunlukCiroModal";
 import HakedisModal from "../../src/components/HakedisModal";
-import DatePickerField from "../../src/components/DatePickerField";
 import { Kasa } from "../../src/types";
 import { supabase } from "../../src/lib/supabase";
 import {
@@ -31,22 +29,24 @@ import {
   Building2,
   CreditCard,
   Users,
-  UserCheck,
   ChevronRight,
   ChevronDown,
   ChevronUp,
   PiggyBank,
   TrendingUp,
   TrendingDown,
-  Plus,
   ArrowRightLeft,
   X,
+  Calendar,
   Truck,
   ShoppingBag,
-  Receipt,
-  HandCoins,
-  CircleDollarSign,
-  Sparkles,
+  Banknote,
+  Scale,
+  Info,
+  Plus,
+  Search,
+  PlusCircle,
+  Check,
 } from "lucide-react-native";
 
 if (
@@ -55,8 +55,6 @@ if (
 ) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
-
-const { width } = Dimensions.get("window");
 
 type IslemTipi = "gelir" | "gider" | "odeme" | "tahsilat" | "transfer";
 
@@ -97,6 +95,7 @@ export default function Dashboard() {
   const [formDate, setFormDate] = useState(
     new Date().toISOString().split("T")[0]
   );
+  const [showDatePicker, setShowDatePicker] = useState(false);
   const [formAmount, setFormAmount] = useState("");
   const [formDescription, setFormDescription] = useState("");
   const [formTargetKasaId, setFormTargetKasaId] = useState<string | null>(null);
@@ -106,8 +105,18 @@ export default function Dashboard() {
   const [formTargetId, setFormTargetId] = useState<string | null>(null);
   const [formKategoriId, setFormKategoriId] = useState<string>("");
   const [showKategoriPicker, setShowKategoriPicker] = useState(false);
+  const [kategoriSearch, setKategoriSearch] = useState("");
   const [formLoading, setFormLoading] = useState(false);
   const [showTargetModal, setShowTargetModal] = useState(false);
+
+  // Hesap Ekleme
+  const [showAddKasaModal, setShowAddKasaModal] = useState(false);
+  const [newKasaName, setNewKasaName] = useState("");
+  const [newKasaType, setNewKasaType] = useState<
+    "nakit" | "banka" | "kredi_karti" | "birikim"
+  >("nakit");
+  const [newKasaBalance, setNewKasaBalance] = useState("");
+  const [addingKasa, setAddingKasa] = useState(false);
 
   useEffect(() => {
     loadAllData();
@@ -152,24 +161,59 @@ export default function Dashboard() {
     }).format(amount);
   };
 
-  // Hesaplamalar
-  const totalKasaBakiye = kasalar
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("tr-TR", { day: "numeric", month: "short" });
+  };
+
+  // ========== HESAPLAMALAR ==========
+
+  // Hesaplardaki toplam para (tüm kasalar)
+  const toplamHesaplar = kasalar
     .filter((k) => !k.is_archived)
     .reduce((sum, k) => sum + k.balance, 0);
-  const totalCariBorcumuz = cariler
-    .filter((c) => !c.is_archived && c.balance > 0)
-    .reduce((sum, c) => sum + c.balance, 0);
-  const totalCariAlacagimiz = cariler
-    .filter((c) => !c.is_archived && c.balance < 0)
+
+  // Tedarikçiler: pozitif bakiye = biz borçluyuz, negatif bakiye = bize borçlu (alacak)
+  const tedarikciler = cariler.filter(
+    (c) => c.type === "tedarikci" && !c.is_archived
+  );
+  const tedarikcidenAlacak = tedarikciler
+    .filter((c) => c.balance < 0)
     .reduce((sum, c) => sum + Math.abs(c.balance), 0);
-  const totalPersonelBorcumuz = personeller
-    .filter((p) => !p.is_archived && p.balance > 0)
+  const tedarikciyeBorcumuz = tedarikciler
+    .filter((c) => c.balance > 0)
+    .reduce((sum, c) => sum + c.balance, 0);
+
+  // Müşteriler: pozitif bakiye = müşteri bize borçlu (alacak), negatif = biz borçluyuz
+  const musteriler = cariler.filter(
+    (c) => c.type === "musteri" && !c.is_archived
+  );
+  const musterilerdenAlacak = musteriler
+    .filter((c) => c.balance > 0)
+    .reduce((sum, c) => sum + c.balance, 0);
+  const musterilereBorcumuz = musteriler
+    .filter((c) => c.balance < 0)
+    .reduce((sum, c) => sum + Math.abs(c.balance), 0);
+
+  // Personel: pozitif bakiye = biz borçluyuz (maaş), negatif = personel bize borçlu (avans)
+  const aktifPersoneller = personeller.filter((p) => !p.is_archived);
+  const personeldenAlacak = aktifPersoneller
+    .filter((p) => p.balance < 0)
+    .reduce((sum, p) => sum + Math.abs(p.balance), 0);
+  const personeleBorcumuz = aktifPersoneller
+    .filter((p) => p.balance > 0)
     .reduce((sum, p) => sum + p.balance, 0);
-  const genelDurum =
-    totalKasaBakiye +
-    totalCariAlacagimiz -
-    totalCariBorcumuz -
-    totalPersonelBorcumuz;
+
+  // Toplamlar
+  const toplamAlacaklar =
+    tedarikcidenAlacak + musterilerdenAlacak + personeldenAlacak;
+  const toplamBorclar =
+    tedarikciyeBorcumuz + musterilereBorcumuz + personeleBorcumuz;
+
+  // Net Durum
+  const netDurum = toplamHesaplar + toplamAlacaklar - toplamBorclar;
+
+  // ========== FORM İŞLEMLERİ ==========
 
   const toggleExpand = (kasaId: string) => {
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
@@ -360,7 +404,9 @@ export default function Dashboard() {
           });
         }
       } else if (activeIslemTipi === "transfer") {
-        if (!description) description = "Kasalar arası transfer";
+        const targetKasa = kasalar.find((k) => k.id === formTargetKasaId);
+        if (!description)
+          description = `${kasa.name} → ${targetKasa?.name || "Hedef Kasa"}`;
         await supabase.from("islemler").insert({
           type: "transfer",
           amount,
@@ -386,11 +432,12 @@ export default function Dashboard() {
       setActiveIslemTipi(null);
       fetchKasalar();
       fetchIslemler();
-      fetchCariler();
       fetchPersoneller();
       fetchPersonelIslemler();
-    } catch (error: any) {
-      Alert.alert("Hata", error.message || "İşlem kaydedilemedi");
+      fetchCariler();
+    } catch (error) {
+      console.error("İşlem hatası:", error);
+      Alert.alert("Hata", "İşlem kaydedilirken bir hata oluştu");
     } finally {
       setFormLoading(false);
     }
@@ -404,18 +451,51 @@ export default function Dashboard() {
 
   const getTargetName = () => {
     if (!formTargetId) return "Seçiniz";
-    if (formTargetType === "personel")
+    if (formTargetType === "personel") {
       return personeller.find((p) => p.id === formTargetId)?.name || "Seçiniz";
+    }
     return cariler.find((c) => c.id === formTargetId)?.name || "Seçiniz";
   };
 
-  const today = new Date();
-  const greeting = () => {
-    const hour = today.getHours();
-    if (hour < 12) return "Günaydın";
-    if (hour < 18) return "İyi günler";
-    return "İyi akşamlar";
+  // Hesap Ekleme
+  const handleAddKasa = async () => {
+    if (!newKasaName.trim()) {
+      Alert.alert("Hata", "Hesap adı girin");
+      return;
+    }
+
+    setAddingKasa(true);
+    try {
+      const {
+        data: { user: currentUser },
+      } = await supabase.auth.getUser();
+      if (!currentUser) throw new Error("Kullanıcı bulunamadı");
+
+      const { error } = await supabase.from("kasalar").insert({
+        name: newKasaName.trim(),
+        type: newKasaType,
+        balance: newKasaBalance ? parseFloat(newKasaBalance) : 0,
+        restaurant_id: profile?.restaurant_id,
+        created_by: currentUser.id,
+      });
+
+      if (error) throw error;
+
+      Alert.alert("Başarılı", "Hesap eklendi");
+      setNewKasaName("");
+      setNewKasaType("nakit");
+      setNewKasaBalance("");
+      setShowAddKasaModal(false);
+      fetchKasalar();
+    } catch (error) {
+      console.error("Hesap ekleme hatası:", error);
+      Alert.alert("Hata", "Hesap eklenirken bir hata oluştu");
+    } finally {
+      setAddingKasa(false);
+    }
   };
+
+  const tumKasalar = kasalar.filter((k) => !k.is_archived);
 
   const renderKasaCard = (kasa: Kasa) => {
     const isExpanded = expandedKasaId === kasa.id;
@@ -432,31 +512,30 @@ export default function Dashboard() {
           onPress={() => toggleExpand(kasa.id)}
           activeOpacity={0.7}
         >
-          <View
-            style={[
-              styles.kasaIconBox,
-              { backgroundColor: iconConfig.bgColor },
-            ]}
-          >
-            <IconComponent size={20} color={iconConfig.color} />
-          </View>
-          <View style={styles.kasaInfo}>
-            <Text style={styles.kasaName}>{kasa.name}</Text>
-            <Text style={styles.kasaType}>
-              {kasa.type === "nakit"
-                ? "Nakit"
-                : kasa.type === "banka"
-                ? "Banka Hesabı"
-                : kasa.type === "kredi_karti"
-                ? "Kredi Kartı"
-                : "Birikim"}
-            </Text>
+          <View style={styles.kasaLeft}>
+            <View
+              style={[styles.kasaIcon, { backgroundColor: iconConfig.bgColor }]}
+            >
+              <IconComponent size={20} color={iconConfig.color} />
+            </View>
+            <View style={styles.kasaInfo}>
+              <Text style={styles.kasaName}>{kasa.name}</Text>
+              <Text style={styles.kasaType}>
+                {kasa.type === "nakit"
+                  ? "Nakit"
+                  : kasa.type === "banka"
+                  ? "Banka"
+                  : kasa.type === "kredi_karti"
+                  ? "Kredi Kartı"
+                  : "Birikim"}
+              </Text>
+            </View>
           </View>
           <View style={styles.kasaRight}>
             <Text
               style={[
                 styles.kasaBalance,
-                kasa.balance < 0 && styles.kasaBalanceNegative,
+                kasa.balance < 0 && styles.negativeText,
               ]}
             >
               {formatCurrency(kasa.balance)}
@@ -471,7 +550,17 @@ export default function Dashboard() {
 
         {isExpanded && (
           <View style={styles.expandedContent}>
-            <View style={styles.islemGrid}>
+            {/* Hesap Detayları Butonu */}
+            <TouchableOpacity
+              style={styles.historyBtn}
+              onPress={() => router.push(`/kasadetay?id=${kasa.id}`)}
+            >
+              <Info size={18} color="#6b7280" />
+              <Text style={styles.historyBtnText}>Hesap Detaylarını Gör</Text>
+              <ChevronRight size={18} color="#9ca3af" />
+            </TouchableOpacity>
+
+            <View style={styles.islemBtnRow}>
               <TouchableOpacity
                 style={[
                   styles.islemBtn,
@@ -483,7 +572,7 @@ export default function Dashboard() {
                 onPress={() => selectIslemTipi("gelir")}
               >
                 <ArrowDownLeft
-                  size={18}
+                  size={16}
                   color={activeIslemTipi === "gelir" ? "#fff" : "#10b981"}
                 />
                 <Text
@@ -506,7 +595,7 @@ export default function Dashboard() {
                 onPress={() => selectIslemTipi("gider")}
               >
                 <ArrowUpRight
-                  size={18}
+                  size={16}
                   color={activeIslemTipi === "gider" ? "#fff" : "#ef4444"}
                 />
                 <Text
@@ -529,7 +618,7 @@ export default function Dashboard() {
                 onPress={() => selectIslemTipi("odeme")}
               >
                 <ArrowUpRight
-                  size={18}
+                  size={16}
                   color={activeIslemTipi === "odeme" ? "#fff" : "#3b82f6"}
                 />
                 <Text
@@ -541,6 +630,8 @@ export default function Dashboard() {
                   Ödeme
                 </Text>
               </TouchableOpacity>
+            </View>
+            <View style={styles.islemBtnRow}>
               <TouchableOpacity
                 style={[
                   styles.islemBtn,
@@ -552,7 +643,7 @@ export default function Dashboard() {
                 onPress={() => selectIslemTipi("tahsilat")}
               >
                 <ArrowDownLeft
-                  size={18}
+                  size={16}
                   color={activeIslemTipi === "tahsilat" ? "#fff" : "#8b5cf6"}
                 />
                 <Text
@@ -567,37 +658,80 @@ export default function Dashboard() {
                   Tahsilat
                 </Text>
               </TouchableOpacity>
-            </View>
-
-            {otherKasalar.length > 0 && (
-              <TouchableOpacity
-                style={[
-                  styles.transferBtn,
-                  activeIslemTipi === "transfer" && {
-                    backgroundColor: "#f59e0b",
-                    borderColor: "#f59e0b",
-                  },
-                ]}
-                onPress={() => selectIslemTipi("transfer")}
-              >
-                <ArrowRightLeft
-                  size={18}
-                  color={activeIslemTipi === "transfer" ? "#fff" : "#f59e0b"}
-                />
-                <Text
+              {otherKasalar.length > 0 && (
+                <TouchableOpacity
                   style={[
-                    styles.transferBtnText,
-                    activeIslemTipi === "transfer" && { color: "#fff" },
+                    styles.islemBtn,
+                    activeIslemTipi === "transfer" && {
+                      backgroundColor: "#f59e0b",
+                      borderColor: "#f59e0b",
+                    },
                   ]}
+                  onPress={() => selectIslemTipi("transfer")}
                 >
-                  Transfer
-                </Text>
-              </TouchableOpacity>
-            )}
+                  <ArrowRightLeft
+                    size={16}
+                    color={activeIslemTipi === "transfer" ? "#fff" : "#f59e0b"}
+                  />
+                  <Text
+                    style={[
+                      styles.islemBtnText,
+                      {
+                        color:
+                          activeIslemTipi === "transfer" ? "#fff" : "#f59e0b",
+                      },
+                    ]}
+                  >
+                    Transfer
+                  </Text>
+                </TouchableOpacity>
+              )}
+            </View>
 
             {activeIslemTipi && (
               <View style={styles.formContainer}>
-                <DatePickerField value={formDate} onChange={setFormDate} />
+                <TouchableOpacity
+                  style={styles.dateRow}
+                  onPress={() => setShowDatePicker(true)}
+                >
+                  <Calendar size={16} color="#6b7280" />
+                  <Text style={styles.dateText}>{formatDate(formDate)}</Text>
+                  <ChevronDown size={16} color="#6b7280" />
+                </TouchableOpacity>
+
+                {/* iOS Date Picker */}
+                {showDatePicker && Platform.OS === "ios" && (
+                  <View style={styles.iosDatePicker}>
+                    <DateTimePicker
+                      value={new Date(formDate)}
+                      mode="date"
+                      display="spinner"
+                      onChange={(event, date) => {
+                        if (date) setFormDate(date.toISOString().split("T")[0]);
+                      }}
+                      locale="tr-TR"
+                    />
+                    <TouchableOpacity
+                      style={styles.datePickerDoneBtn}
+                      onPress={() => setShowDatePicker(false)}
+                    >
+                      <Text style={styles.datePickerDoneBtnText}>Tamam</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                {/* Android Date Picker */}
+                {showDatePicker && Platform.OS === "android" && (
+                  <DateTimePicker
+                    value={new Date(formDate)}
+                    mode="date"
+                    display="default"
+                    onChange={(event, date) => {
+                      setShowDatePicker(false);
+                      if (date) setFormDate(date.toISOString().split("T")[0]);
+                    }}
+                  />
+                )}
 
                 {(activeIslemTipi === "odeme" ||
                   activeIslemTipi === "tahsilat") && (
@@ -626,18 +760,16 @@ export default function Dashboard() {
                       horizontal
                       showsHorizontalScrollIndicator={false}
                     >
-                      <View style={styles.kasaChipRow}>
+                      <View style={styles.chipRow}>
                         {otherKasalar.map((k) => {
-                          const kIconConfig =
-                            kasaIcons[k.type] || kasaIcons.nakit;
-                          const KIcon = kIconConfig.icon;
+                          const kIcon = kasaIcons[k.type] || kasaIcons.nakit;
+                          const KIcon = kIcon.icon;
                           return (
                             <TouchableOpacity
                               key={k.id}
                               style={[
-                                styles.kasaChip,
-                                formTargetKasaId === k.id &&
-                                  styles.kasaChipActive,
+                                styles.chip,
+                                formTargetKasaId === k.id && styles.chipActive,
                               ]}
                               onPress={() => setFormTargetKasaId(k.id)}
                             >
@@ -646,14 +778,14 @@ export default function Dashboard() {
                                 color={
                                   formTargetKasaId === k.id
                                     ? "#fff"
-                                    : kIconConfig.color
+                                    : kIcon.color
                                 }
                               />
                               <Text
                                 style={[
-                                  styles.kasaChipText,
+                                  styles.chipText,
                                   formTargetKasaId === k.id &&
-                                    styles.kasaChipTextActive,
+                                    styles.chipTextActive,
                                 ]}
                               >
                                 {k.name}
@@ -668,70 +800,30 @@ export default function Dashboard() {
 
                 {(activeIslemTipi === "gelir" ||
                   activeIslemTipi === "gider") && (
-                  <View style={{ zIndex: 10 }}>
-                    <TouchableOpacity
-                      style={styles.selectBtn}
-                      onPress={() => setShowKategoriPicker(!showKategoriPicker)}
+                  <TouchableOpacity
+                    style={styles.selectBtn}
+                    onPress={() => setShowKategoriPicker(true)}
+                  >
+                    <Text
+                      style={[
+                        styles.selectBtnText,
+                        !formKategoriId && { color: "#9ca3af" },
+                      ]}
                     >
-                      <Text
-                        style={[
-                          styles.selectBtnText,
-                          !formKategoriId && { color: "#9ca3af" },
-                        ]}
-                      >
-                        {formKategoriId
-                          ? kategoriler.find((k) => k.id === formKategoriId)
-                              ?.name || "Kategori Seç"
-                          : "Kategori Seç (Opsiyonel)"}
-                      </Text>
-                      <ChevronDown size={18} color="#6b7280" />
-                    </TouchableOpacity>
-                    {showKategoriPicker && (
-                      <ScrollView
-                        style={styles.kategoriList}
-                        nestedScrollEnabled
-                      >
-                        {kategoriler
-                          .filter(
-                            (k) =>
-                              k.type ===
-                              (activeIslemTipi === "gelir" ? "gelir" : "gider")
-                          )
-                          .map((k) => (
-                            <TouchableOpacity
-                              key={k.id}
-                              style={[
-                                styles.kategoriItem,
-                                formKategoriId === k.id &&
-                                  styles.kategoriItemActive,
-                              ]}
-                              onPress={() => {
-                                setFormKategoriId(k.id);
-                                setShowKategoriPicker(false);
-                              }}
-                            >
-                              <Text
-                                style={[
-                                  styles.kategoriItemText,
-                                  formKategoriId === k.id &&
-                                    styles.kategoriItemTextActive,
-                                ]}
-                              >
-                                {k.name}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                      </ScrollView>
-                    )}
-                  </View>
+                      {formKategoriId
+                        ? kategoriler.find((k) => k.id === formKategoriId)?.name
+                        : "Kategori (opsiyonel)"}
+                    </Text>
+                    <ChevronDown size={18} color="#6b7280" />
+                  </TouchableOpacity>
                 )}
 
                 <TextInput
                   style={styles.input}
-                  placeholder="Açıklama (opsiyonel)"
-                  placeholderTextColor="#9ca3af"
                   value={formDescription}
                   onChangeText={setFormDescription}
+                  placeholder="Açıklama (opsiyonel)"
+                  placeholderTextColor="#9ca3af"
                 />
 
                 <View style={styles.amountRow}>
@@ -739,11 +831,11 @@ export default function Dashboard() {
                     <Text style={styles.currencySymbol}>₺</Text>
                     <TextInput
                       style={styles.amountInput}
+                      value={formAmount}
+                      onChangeText={setFormAmount}
                       placeholder="0"
                       placeholderTextColor="#d1d5db"
                       keyboardType="numeric"
-                      value={formAmount}
-                      onChangeText={setFormAmount}
                     />
                   </View>
                   <TouchableOpacity
@@ -773,16 +865,6 @@ export default function Dashboard() {
                 </View>
               </View>
             )}
-
-            <TouchableOpacity
-              style={styles.viewAllBtn}
-              onPress={() =>
-                router.push({ pathname: "/kasadetay", params: { id: kasa.id } })
-              }
-            >
-              <Text style={styles.viewAllBtnText}>Tüm Hareketler</Text>
-              <ChevronRight size={16} color="#3b82f6" />
-            </TouchableOpacity>
           </View>
         )}
       </View>
@@ -793,285 +875,601 @@ export default function Dashboard() {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView
         style={styles.scrollView}
-        contentContainerStyle={styles.scrollContent}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor="#fff"
-          />
-        }
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
       >
-        {/* Hero Section */}
-        <LinearGradient
-          colors={["#1e3a5f", "#2d5a87"]}
-          style={styles.heroSection}
-        >
-          <View style={styles.heroHeader}>
-            <View>
-              <Text style={styles.heroGreeting}>{greeting()}</Text>
-              <Text style={styles.heroName}>
-                {profile?.name?.split(" ")[0] || "Kullanıcı"}
-              </Text>
-            </View>
-            <View style={styles.heroIconBox}>
-              <Sparkles size={24} color="#fbbf24" />
-            </View>
-          </View>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.greeting}>
+            Merhaba, {profile?.name?.split(" ")[0] || "Kullanıcı"}
+          </Text>
+        </View>
 
-          <View style={styles.heroBalanceBox}>
-            <Text style={styles.heroBalanceLabel}>Toplam Varlık</Text>
-            <Text style={styles.heroBalanceValue}>
-              {formatCurrency(totalKasaBakiye)}
-            </Text>
-            <View style={styles.heroTrendRow}>
-              {genelDurum >= 0 ? (
-                <TrendingUp size={16} color="#4ade80" />
-              ) : (
-                <TrendingDown size={16} color="#f87171" />
+        {/* ========== FİNANSAL ÖZET PANELİ ========== */}
+        <View style={styles.summaryPanel}>
+          {/* Üst Satır: Varlıklar ve Borçlar */}
+          <View style={styles.summaryRow}>
+            {/* Sol: Varlıklar */}
+            <View style={styles.summaryColumn}>
+              <View style={styles.summaryHeader}>
+                <TrendingUp size={16} color="#10b981" />
+                <Text style={styles.summaryHeaderText}>Varlıklar</Text>
+              </View>
+
+              <View style={styles.summaryMainItem}>
+                <Wallet size={16} color="#3b82f6" />
+                <Text style={styles.summaryItemLabel}>Hesaplarım</Text>
+                <Text
+                  style={[
+                    styles.summaryItemValue,
+                    toplamHesaplar < 0 && styles.negativeText,
+                  ]}
+                >
+                  {formatCurrency(toplamHesaplar)}
+                </Text>
+              </View>
+
+              {tedarikcidenAlacak > 0 && (
+                <View style={styles.summarySubItem}>
+                  <Text style={styles.summarySubLabel}>Tedarikçilerden</Text>
+                  <Text style={styles.summarySubValue}>
+                    {formatCurrency(tedarikcidenAlacak)}
+                  </Text>
+                </View>
               )}
-              <Text
-                style={[
-                  styles.heroTrendText,
-                  genelDurum >= 0 ? { color: "#4ade80" } : { color: "#f87171" },
-                ]}
-              >
-                Net Durum: {formatCurrency(genelDurum)}
-              </Text>
+
+              {musterilerdenAlacak > 0 && (
+                <View style={styles.summarySubItem}>
+                  <Text style={styles.summarySubLabel}>Müşterilerden</Text>
+                  <Text style={styles.summarySubValue}>
+                    {formatCurrency(musterilerdenAlacak)}
+                  </Text>
+                </View>
+              )}
+
+              {personeldenAlacak > 0 && (
+                <View style={styles.summarySubItem}>
+                  <Text style={styles.summarySubLabel}>Personelden</Text>
+                  <Text style={styles.summarySubValue}>
+                    {formatCurrency(personeldenAlacak)}
+                  </Text>
+                </View>
+              )}
+
+              <View style={styles.summaryTotalRow}>
+                <Text style={styles.summaryTotalLabel}>Toplam</Text>
+                <Text style={[styles.summaryTotalValue, { color: "#10b981" }]}>
+                  {formatCurrency(toplamHesaplar + toplamAlacaklar)}
+                </Text>
+              </View>
+            </View>
+
+            {/* Dikey Çizgi */}
+            <View style={styles.divider} />
+
+            {/* Sağ: Borçlar */}
+            <View style={styles.summaryColumn}>
+              <View style={styles.summaryHeader}>
+                <TrendingDown size={16} color="#ef4444" />
+                <Text style={[styles.summaryHeaderText, { color: "#ef4444" }]}>
+                  Borçlar
+                </Text>
+              </View>
+
+              {tedarikciyeBorcumuz > 0 && (
+                <View style={styles.summarySubItem}>
+                  <Text style={styles.summarySubLabel}>Tedarikçilere</Text>
+                  <Text style={[styles.summarySubValue, styles.negativeText]}>
+                    {formatCurrency(tedarikciyeBorcumuz)}
+                  </Text>
+                </View>
+              )}
+
+              {personeleBorcumuz > 0 && (
+                <View style={styles.summarySubItem}>
+                  <Text style={styles.summarySubLabel}>Personele</Text>
+                  <Text style={[styles.summarySubValue, styles.negativeText]}>
+                    {formatCurrency(personeleBorcumuz)}
+                  </Text>
+                </View>
+              )}
+
+              {musterilereBorcumuz > 0 && (
+                <View style={styles.summarySubItem}>
+                  <Text style={styles.summarySubLabel}>Müşterilere</Text>
+                  <Text style={[styles.summarySubValue, styles.negativeText]}>
+                    {formatCurrency(musterilereBorcumuz)}
+                  </Text>
+                </View>
+              )}
+
+              {toplamBorclar === 0 && (
+                <View style={styles.summarySubItem}>
+                  <Text style={styles.summarySubLabel}>Borcunuz yok</Text>
+                  <Text style={styles.summarySubValue}>₺0</Text>
+                </View>
+              )}
+
+              <View style={styles.summaryTotalRow}>
+                <Text style={styles.summaryTotalLabel}>Toplam</Text>
+                <Text style={[styles.summaryTotalValue, { color: "#ef4444" }]}>
+                  {toplamBorclar > 0 ? "-" : ""}
+                  {formatCurrency(toplamBorclar)}
+                </Text>
+              </View>
             </View>
           </View>
-        </LinearGradient>
 
-        {/* Finansal Özet */}
-        <View style={styles.summarySection}>
-          <View style={styles.summaryGrid}>
-            <TouchableOpacity
-              style={styles.summaryCard}
-              onPress={() => router.push("/cari")}
+          {/* Net Durum */}
+          <View
+            style={[
+              styles.netDurumBox,
+              netDurum >= 0 ? styles.netDurumPositive : styles.netDurumNegative,
+            ]}
+          >
+            <View style={styles.netDurumLeft}>
+              <Scale size={20} color={netDurum >= 0 ? "#10b981" : "#ef4444"} />
+              <Text style={styles.netDurumLabel}>Net Durum</Text>
+            </View>
+            <Text
+              style={[
+                styles.netDurumValue,
+                netDurum >= 0 ? { color: "#10b981" } : { color: "#ef4444" },
+              ]}
             >
-              <View
-                style={[styles.summaryIconBox, { backgroundColor: "#fef3c7" }]}
-              >
-                <Truck size={20} color="#f59e0b" />
-              </View>
-              <Text style={styles.summaryLabel}>Cari Borç</Text>
-              <Text style={[styles.summaryValue, { color: "#ef4444" }]}>
-                {formatCurrency(totalCariBorcumuz)}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.summaryCard}
-              onPress={() => router.push("/cari")}
-            >
-              <View
-                style={[styles.summaryIconBox, { backgroundColor: "#dcfce7" }]}
-              >
-                <CircleDollarSign size={20} color="#10b981" />
-              </View>
-              <Text style={styles.summaryLabel}>Cari Alacak</Text>
-              <Text style={[styles.summaryValue, { color: "#10b981" }]}>
-                {formatCurrency(totalCariAlacagimiz)}
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.summaryCard}
-              onPress={() => router.push("/personel")}
-            >
-              <View
-                style={[styles.summaryIconBox, { backgroundColor: "#dbeafe" }]}
-              >
-                <Users size={20} color="#3b82f6" />
-              </View>
-              <Text style={styles.summaryLabel}>Personel Borç</Text>
-              <Text style={[styles.summaryValue, { color: "#ef4444" }]}>
-                {formatCurrency(totalPersonelBorcumuz)}
-              </Text>
-            </TouchableOpacity>
+              {netDurum >= 0 ? "+" : ""}
+              {formatCurrency(netDurum)}
+            </Text>
           </View>
         </View>
 
-        {/* Hızlı İşlemler */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Hızlı İşlemler</Text>
-          <View style={styles.quickActionsGrid}>
-            <TouchableOpacity
-              style={styles.quickActionCard}
-              onPress={() => setShowCiroModal(true)}
-            >
-              <LinearGradient
-                colors={["#10b981", "#059669"]}
-                style={styles.quickActionGradient}
-              >
-                <Receipt size={24} color="#fff" />
-              </LinearGradient>
-              <Text style={styles.quickActionText}>Günlük Ciro</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickActionCard}
-              onPress={() => setShowHakedisModal(true)}
-            >
-              <LinearGradient
-                colors={["#f59e0b", "#d97706"]}
-                style={styles.quickActionGradient}
-              >
-                <HandCoins size={24} color="#fff" />
-              </LinearGradient>
-              <Text style={styles.quickActionText}>Hakediş</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickActionCard}
-              onPress={() => router.push("/cari")}
-            >
-              <LinearGradient
-                colors={["#8b5cf6", "#7c3aed"]}
-                style={styles.quickActionGradient}
-              >
-                <Truck size={24} color="#fff" />
-              </LinearGradient>
-              <Text style={styles.quickActionText}>Cariler</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.quickActionCard}
-              onPress={() => router.push("/personel")}
-            >
-              <LinearGradient
-                colors={["#3b82f6", "#2563eb"]}
-                style={styles.quickActionGradient}
-              >
-                <Users size={24} color="#fff" />
-              </LinearGradient>
-              <Text style={styles.quickActionText}>Personel</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* Hesaplar */}
+        {/* ========== HESAPLAR ========== */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Hesaplarım</Text>
             <TouchableOpacity
-              style={styles.seeAllBtn}
-              onPress={() => router.push("/kasa")}
+              style={styles.addKasaBtn}
+              onPress={() => setShowAddKasaModal(true)}
             >
-              <Text style={styles.seeAllText}>Tümü</Text>
-              <ChevronRight size={16} color="#3b82f6" />
+              <Plus size={16} color="#3b82f6" />
+              <Text style={styles.addKasaBtnText}>Hesap Ekle</Text>
             </TouchableOpacity>
           </View>
 
-          {kasalar.filter((k) => !k.is_archived).length === 0 ? (
-            <View style={styles.emptyState}>
-              <Wallet size={48} color="#d1d5db" />
-              <Text style={styles.emptyTitle}>Henüz hesap yok</Text>
-              <Text style={styles.emptyDesc}>
-                İlk hesabınızı ekleyerek başlayın
-              </Text>
-              <TouchableOpacity
-                style={styles.emptyBtn}
-                onPress={() => router.push("/kasa")}
-              >
-                <Plus size={18} color="#fff" />
-                <Text style={styles.emptyBtnText}>Hesap Ekle</Text>
-              </TouchableOpacity>
+          {tumKasalar.length > 0 ? (
+            <View style={styles.kasaList}>
+              {tumKasalar.map((kasa) => renderKasaCard(kasa))}
             </View>
           ) : (
-            <View style={styles.kasaList}>
-              {kasalar.filter((k) => !k.is_archived).map(renderKasaCard)}
-            </View>
+            <TouchableOpacity
+              style={styles.emptyState}
+              onPress={() => setShowAddKasaModal(true)}
+            >
+              <Wallet size={32} color="#9ca3af" />
+              <Text style={styles.emptyText}>Kasa eklemek için tıklayın</Text>
+            </TouchableOpacity>
           )}
+        </View>
+
+        {/* ========== HIZLI İŞLEMLER ========== */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Hızlı İşlemler</Text>
+          <View style={styles.quickActionsRow}>
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => setShowCiroModal(true)}
+            >
+              <View
+                style={[styles.quickActionIcon, { backgroundColor: "#dcfce7" }]}
+              >
+                <TrendingUp size={22} color="#10b981" />
+              </View>
+              <Text style={styles.quickActionText}>Günlük Ciro Gir</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.quickActionBtn}
+              onPress={() => setShowHakedisModal(true)}
+            >
+              <View
+                style={[styles.quickActionIcon, { backgroundColor: "#ede9fe" }]}
+              >
+                <Banknote size={22} color="#8b5cf6" />
+              </View>
+              <Text style={styles.quickActionText}>Maaş Hakedişi</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={{ height: 30 }} />
       </ScrollView>
 
-      {/* Target Selection Modal */}
-      <Modal visible={showTargetModal} animationType="slide">
+      {/* Hedef Seçme Modal */}
+      <Modal
+        visible={showTargetModal}
+        animationType="slide"
+        presentationStyle="pageSheet"
+      >
         <SafeAreaView style={styles.modalContainer}>
           <View style={styles.modalHeader}>
+            <TouchableOpacity onPress={() => setShowTargetModal(false)}>
+              <X size={24} color="#6b7280" />
+            </TouchableOpacity>
             <Text style={styles.modalTitle}>
               {activeIslemTipi === "odeme" ? "Kime Ödeme?" : "Kimden Tahsilat?"}
             </Text>
-            <TouchableOpacity
-              style={styles.modalCloseBtn}
-              onPress={() => setShowTargetModal(false)}
-            >
-              <X size={24} color="#374151" />
-            </TouchableOpacity>
+            <View style={{ width: 24 }} />
           </View>
+
           <ScrollView style={styles.modalContent}>
-            {personeller.filter((p) => !p.is_archived).length > 0 && (
+            {aktifPersoneller.length > 0 && (
               <>
                 <Text style={styles.modalSectionTitle}>Personel</Text>
-                {personeller
-                  .filter((p) => !p.is_archived)
-                  .map((p) => (
-                    <TouchableOpacity
-                      key={p.id}
-                      style={styles.targetItem}
-                      onPress={() => selectTarget("personel", p.id)}
+                {aktifPersoneller.map((p) => (
+                  <TouchableOpacity
+                    key={p.id}
+                    style={styles.targetItem}
+                    onPress={() => selectTarget("personel", p.id)}
+                  >
+                    <View
+                      style={[
+                        styles.targetItemIcon,
+                        { backgroundColor: "#fef3c7" },
+                      ]}
                     >
-                      <View
-                        style={[
-                          styles.targetItemIcon,
-                          { backgroundColor: "#dbeafe" },
-                        ]}
-                      >
-                        <UserCheck size={20} color="#3b82f6" />
-                      </View>
-                      <View style={styles.targetItemInfo}>
-                        <Text style={styles.targetItemName}>{p.name}</Text>
-                        <Text style={styles.targetItemBalance}>
-                          Bakiye: {formatCurrency(p.balance)}
-                        </Text>
-                      </View>
-                      <ChevronRight size={20} color="#9ca3af" />
-                    </TouchableOpacity>
-                  ))}
+                      <Users size={18} color="#f59e0b" />
+                    </View>
+                    <View style={styles.targetItemInfo}>
+                      <Text style={styles.targetItemName}>{p.name}</Text>
+                      <Text style={styles.targetItemBalance}>
+                        Bakiye: {formatCurrency(p.balance)}
+                      </Text>
+                    </View>
+                    <ChevronRight size={18} color="#9ca3af" />
+                  </TouchableOpacity>
+                ))}
               </>
             )}
-            {cariler.filter((c) => !c.is_archived).length > 0 && (
+
+            {tedarikciler.length > 0 && (
               <>
-                <Text style={[styles.modalSectionTitle, { marginTop: 24 }]}>
-                  Cariler
+                <Text style={[styles.modalSectionTitle, { marginTop: 20 }]}>
+                  Tedarikçiler
                 </Text>
-                {cariler
-                  .filter((c) => !c.is_archived)
-                  .map((c) => (
-                    <TouchableOpacity
-                      key={c.id}
-                      style={styles.targetItem}
-                      onPress={() => selectTarget("cari", c.id)}
+                {tedarikciler.map((c) => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={styles.targetItem}
+                    onPress={() => selectTarget("cari", c.id)}
+                  >
+                    <View
+                      style={[
+                        styles.targetItemIcon,
+                        { backgroundColor: "#fee2e2" },
+                      ]}
                     >
-                      <View
-                        style={[
-                          styles.targetItemIcon,
-                          { backgroundColor: "#fef3c7" },
-                        ]}
-                      >
-                        {c.type === "tedarikci" ? (
-                          <Truck size={20} color="#f59e0b" />
-                        ) : (
-                          <ShoppingBag size={20} color="#f59e0b" />
-                        )}
-                      </View>
-                      <View style={styles.targetItemInfo}>
-                        <Text style={styles.targetItemName}>{c.name}</Text>
-                        <Text style={styles.targetItemBalance}>
-                          Bakiye: {formatCurrency(c.balance)}
-                        </Text>
-                      </View>
-                      <ChevronRight size={20} color="#9ca3af" />
-                    </TouchableOpacity>
-                  ))}
+                      <Truck size={18} color="#ef4444" />
+                    </View>
+                    <View style={styles.targetItemInfo}>
+                      <Text style={styles.targetItemName}>{c.name}</Text>
+                      <Text style={styles.targetItemBalance}>
+                        Bakiye: {formatCurrency(c.balance)}
+                      </Text>
+                    </View>
+                    <ChevronRight size={18} color="#9ca3af" />
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+
+            {musteriler.length > 0 && (
+              <>
+                <Text style={[styles.modalSectionTitle, { marginTop: 20 }]}>
+                  Müşteriler
+                </Text>
+                {musteriler.map((c) => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={styles.targetItem}
+                    onPress={() => selectTarget("cari", c.id)}
+                  >
+                    <View
+                      style={[
+                        styles.targetItemIcon,
+                        { backgroundColor: "#dcfce7" },
+                      ]}
+                    >
+                      <ShoppingBag size={18} color="#10b981" />
+                    </View>
+                    <View style={styles.targetItemInfo}>
+                      <Text style={styles.targetItemName}>{c.name}</Text>
+                      <Text style={styles.targetItemBalance}>
+                        Bakiye: {formatCurrency(c.balance)}
+                      </Text>
+                    </View>
+                    <ChevronRight size={18} color="#9ca3af" />
+                  </TouchableOpacity>
+                ))}
               </>
             )}
           </ScrollView>
         </SafeAreaView>
+      </Modal>
+
+      {/* Kategori Seçme Modal - Tam Ekran */}
+      <Modal
+        visible={showKategoriPicker}
+        animationType="slide"
+        presentationStyle="pageSheet"
+        onRequestClose={() => {
+          setShowKategoriPicker(false);
+          setKategoriSearch("");
+        }}
+      >
+        <SafeAreaView style={styles.kategoriModalContainer}>
+          <View style={styles.kategoriModalHeader}>
+            <Text style={styles.kategoriModalTitle}>Kategori Seç</Text>
+            <TouchableOpacity
+              style={styles.kategoriModalCloseBtn}
+              onPress={() => {
+                setShowKategoriPicker(false);
+                setKategoriSearch("");
+              }}
+            >
+              <X size={24} color="#374151" />
+            </TouchableOpacity>
+          </View>
+
+          {/* Arama */}
+          <View style={styles.kategoriSearchContainer}>
+            <Search size={20} color="#9ca3af" />
+            <TextInput
+              style={styles.kategoriSearchInput}
+              placeholder="Kategori ara..."
+              placeholderTextColor="#9ca3af"
+              value={kategoriSearch}
+              onChangeText={setKategoriSearch}
+            />
+          </View>
+
+          {/* Kategori Listesi */}
+          <ScrollView
+            style={styles.kategoriScrollView}
+            contentContainerStyle={styles.kategoriListContent}
+          >
+            {/* Kategorisiz seçeneği */}
+            <TouchableOpacity
+              style={[
+                styles.kategoriModalItem,
+                formKategoriId === "" && styles.kategoriModalItemActive,
+              ]}
+              onPress={() => {
+                setFormKategoriId("");
+                setShowKategoriPicker(false);
+                setKategoriSearch("");
+              }}
+            >
+              <Text
+                style={[
+                  styles.kategoriModalItemText,
+                  formKategoriId === "" && styles.kategoriModalItemTextActive,
+                ]}
+              >
+                Kategorisiz
+              </Text>
+              {formKategoriId === "" && <Check size={20} color="#10b981" />}
+            </TouchableOpacity>
+
+            <View style={styles.kategoriSeparator} />
+
+            {/* Ana kategoriler ve alt kategoriler */}
+            {kategoriler
+              .filter((k) => k.type === activeIslemTipi && !k.parent_id)
+              .filter(
+                (k) =>
+                  kategoriSearch === "" ||
+                  k.name.toLowerCase().includes(kategoriSearch.toLowerCase()) ||
+                  kategoriler.some(
+                    (sub) =>
+                      sub.parent_id === k.id &&
+                      sub.name
+                        .toLowerCase()
+                        .includes(kategoriSearch.toLowerCase())
+                  )
+              )
+              .map((anaKategori) => {
+                const altKategoriler = kategoriler
+                  .filter((k) => k.parent_id === anaKategori.id)
+                  .filter(
+                    (k) =>
+                      kategoriSearch === "" ||
+                      k.name
+                        .toLowerCase()
+                        .includes(kategoriSearch.toLowerCase())
+                  );
+
+                return (
+                  <View key={anaKategori.id} style={styles.kategoriGroup}>
+                    {/* Ana Kategori */}
+                    <TouchableOpacity
+                      style={[
+                        styles.kategoriAnaBaslik,
+                        formKategoriId === anaKategori.id &&
+                          styles.kategoriModalItemActive,
+                      ]}
+                      onPress={() => {
+                        setFormKategoriId(anaKategori.id);
+                        setShowKategoriPicker(false);
+                        setKategoriSearch("");
+                      }}
+                    >
+                      <Text style={styles.kategoriAnaBaslikText}>
+                        {anaKategori.name}
+                      </Text>
+                      {formKategoriId === anaKategori.id && (
+                        <Check size={20} color="#10b981" />
+                      )}
+                    </TouchableOpacity>
+
+                    {/* Alt Kategoriler */}
+                    {altKategoriler.map((altKategori) => (
+                      <TouchableOpacity
+                        key={altKategori.id}
+                        style={[
+                          styles.kategoriAltItem,
+                          formKategoriId === altKategori.id &&
+                            styles.kategoriModalItemActive,
+                        ]}
+                        onPress={() => {
+                          setFormKategoriId(altKategori.id);
+                          setShowKategoriPicker(false);
+                          setKategoriSearch("");
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.kategoriAltItemText,
+                            formKategoriId === altKategori.id &&
+                              styles.kategoriModalItemTextActive,
+                          ]}
+                        >
+                          {altKategori.name}
+                        </Text>
+                        {formKategoriId === altKategori.id && (
+                          <Check size={20} color="#10b981" />
+                        )}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                );
+              })}
+
+            {kategoriler.filter((k) => k.type === activeIslemTipi).length ===
+              0 && (
+              <View style={styles.emptyKategori}>
+                <Text style={styles.emptyKategoriText}>
+                  Henüz kategori eklenmemiş
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      {/* Hesap Ekleme Modal */}
+      <Modal visible={showAddKasaModal} transparent animationType="fade">
+        <TouchableOpacity
+          style={styles.pickerOverlay}
+          activeOpacity={1}
+          onPress={() => setShowAddKasaModal(false)}
+        >
+          <View
+            style={styles.addKasaModal}
+            onStartShouldSetResponder={() => true}
+          >
+            <Text style={styles.addKasaTitle}>Yeni Hesap Ekle</Text>
+
+            <Text style={styles.addKasaLabel}>Hesap Adı</Text>
+            <TextInput
+              style={styles.addKasaInput}
+              value={newKasaName}
+              onChangeText={setNewKasaName}
+              placeholder="Örn: Ana Kasa, Ziraat Bankası"
+              placeholderTextColor="#9ca3af"
+            />
+
+            <Text style={styles.addKasaLabel}>Hesap Türü</Text>
+            <View style={styles.kasaTypeRow}>
+              {[
+                {
+                  type: "nakit",
+                  label: "Nakit",
+                  icon: Wallet,
+                  color: "#10b981",
+                },
+                {
+                  type: "banka",
+                  label: "Banka",
+                  icon: Building2,
+                  color: "#3b82f6",
+                },
+                {
+                  type: "kredi_karti",
+                  label: "Kredi K.",
+                  icon: CreditCard,
+                  color: "#f59e0b",
+                },
+                {
+                  type: "birikim",
+                  label: "Birikim",
+                  icon: PiggyBank,
+                  color: "#8b5cf6",
+                },
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <TouchableOpacity
+                    key={item.type}
+                    style={[
+                      styles.kasaTypeBtn,
+                      newKasaType === item.type && {
+                        backgroundColor: item.color,
+                        borderColor: item.color,
+                      },
+                    ]}
+                    onPress={() => setNewKasaType(item.type as any)}
+                  >
+                    <Icon
+                      size={16}
+                      color={newKasaType === item.type ? "#fff" : item.color}
+                    />
+                    <Text
+                      style={[
+                        styles.kasaTypeBtnText,
+                        newKasaType === item.type && { color: "#fff" },
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.addKasaLabel}>Açılış Bakiyesi (Opsiyonel)</Text>
+            <View style={styles.addKasaAmountRow}>
+              <Text style={styles.addKasaCurrency}>₺</Text>
+              <TextInput
+                style={styles.addKasaAmountInput}
+                value={newKasaBalance}
+                onChangeText={setNewKasaBalance}
+                placeholder="0"
+                placeholderTextColor="#9ca3af"
+                keyboardType="numeric"
+              />
+            </View>
+
+            <View style={styles.addKasaBtnRow}>
+              <TouchableOpacity
+                style={styles.addKasaCancelBtn}
+                onPress={() => setShowAddKasaModal(false)}
+              >
+                <Text style={styles.addKasaCancelBtnText}>İptal</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.addKasaSaveBtn, addingKasa && { opacity: 0.6 }]}
+                onPress={handleAddKasa}
+                disabled={addingKasa}
+              >
+                <Text style={styles.addKasaSaveBtnText}>
+                  {addingKasa ? "..." : "Ekle"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </TouchableOpacity>
       </Modal>
 
       <GunlukCiroModal
@@ -1087,204 +1485,182 @@ export default function Dashboard() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#f8fafc" },
-  scrollView: { flex: 1 },
-  scrollContent: { paddingBottom: 20 },
+  container: { flex: 1, backgroundColor: "#f5f5f5" },
+  scrollView: { flex: 1, paddingHorizontal: 16 },
+  header: { paddingVertical: 16 },
+  greeting: { fontSize: 20, fontWeight: "600", color: "#111827" },
 
-  // Hero Section
-  heroSection: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 30,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-  },
-  heroHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    marginBottom: 24,
-  },
-  heroGreeting: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.7)",
-    marginBottom: 4,
-  },
-  heroName: { fontSize: 24, fontWeight: "700", color: "#fff" },
-  heroIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: "rgba(255,255,255,0.15)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  heroBalanceBox: {
-    backgroundColor: "rgba(255,255,255,0.1)",
-    borderRadius: 20,
-    padding: 20,
-  },
-  heroBalanceLabel: {
-    fontSize: 13,
-    color: "rgba(255,255,255,0.7)",
-    marginBottom: 8,
-  },
-  heroBalanceValue: {
-    fontSize: 36,
-    fontWeight: "800",
-    color: "#fff",
-    marginBottom: 12,
-  },
-  heroTrendRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  heroTrendText: { fontSize: 13, fontWeight: "600" },
-
-  // Summary Section
-  summarySection: { paddingHorizontal: 16, marginTop: -15 },
-  summaryGrid: { flexDirection: "row", gap: 10 },
-  summaryCard: {
-    flex: 1,
+  // Finansal Özet Panel
+  summaryPanel: {
     backgroundColor: "#fff",
     borderRadius: 16,
-    padding: 14,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    padding: 16,
+    marginBottom: 16,
   },
-  summaryIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: "center",
+  summaryRow: { flexDirection: "row" },
+  summaryColumn: { flex: 1 },
+  divider: { width: 1, backgroundColor: "#e5e7eb", marginHorizontal: 12 },
+  summaryHeader: {
+    flexDirection: "row",
     alignItems: "center",
-    marginBottom: 10,
+    gap: 6,
+    marginBottom: 12,
   },
-  summaryLabel: { fontSize: 11, color: "#6b7280", marginBottom: 4 },
-  summaryValue: { fontSize: 14, fontWeight: "700" },
+  summaryHeaderText: { fontSize: 14, fontWeight: "600", color: "#10b981" },
+  summaryMainItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 8,
+  },
+  summaryItemLabel: { flex: 1, fontSize: 13, color: "#6b7280" },
+  summaryItemValue: { fontSize: 14, fontWeight: "600", color: "#111827" },
+  summarySubItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    paddingLeft: 22,
+    marginBottom: 6,
+  },
+  summarySubLabel: { fontSize: 12, color: "#9ca3af" },
+  summarySubValue: { fontSize: 12, fontWeight: "500", color: "#10b981" },
+  summaryTotalRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    borderTopWidth: 1,
+    borderTopColor: "#f3f4f6",
+    paddingTop: 8,
+    marginTop: 8,
+  },
+  summaryTotalLabel: { fontSize: 13, fontWeight: "600", color: "#374151" },
+  summaryTotalValue: { fontSize: 14, fontWeight: "700" },
 
-  // Sections
-  section: { paddingHorizontal: 16, marginTop: 24 },
+  // Net Durum
+  netDurumBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 12,
+    padding: 14,
+    marginTop: 12,
+  },
+  netDurumPositive: { backgroundColor: "#dcfce7" },
+  netDurumNegative: { backgroundColor: "#fee2e2" },
+  netDurumLeft: { flexDirection: "row", alignItems: "center", gap: 8 },
+  netDurumLabel: { fontSize: 15, fontWeight: "600", color: "#374151" },
+  netDurumValue: { fontSize: 20, fontWeight: "700" },
+
+  negativeText: { color: "#ef4444" },
+
+  // Section
+  section: { marginBottom: 20 },
   sectionHeader: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 14,
+    marginBottom: 12,
   },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#1f2937",
-    marginBottom: 14,
-  },
-  seeAllBtn: { flexDirection: "row", alignItems: "center", gap: 2 },
-  seeAllText: { fontSize: 14, color: "#3b82f6", fontWeight: "600" },
+  sectionTitle: { fontSize: 17, fontWeight: "600", color: "#111827" },
+  sectionLink: { fontSize: 14, color: "#3b82f6", fontWeight: "500" },
 
-  // Quick Actions
-  quickActionsGrid: {
+  // Kasa Kartları
+  kasaList: { gap: 10 },
+  kasaCard: { backgroundColor: "#fff", borderRadius: 14, overflow: "hidden" },
+  kasaCardHeader: {
     flexDirection: "row",
-    flexWrap: "wrap",
-    gap: 12,
-    marginTop: -4,
-  },
-  quickActionCard: { width: (width - 44) / 4, alignItems: "center" },
-  quickActionGradient: {
-    width: 52,
-    height: 52,
-    borderRadius: 16,
-    justifyContent: "center",
     alignItems: "center",
-    marginBottom: 8,
+    justifyContent: "space-between",
+    padding: 14,
   },
-  quickActionText: {
-    fontSize: 11,
-    fontWeight: "600",
-    color: "#4b5563",
-    textAlign: "center",
-  },
-
-  // Kasa Cards
-  kasaList: { gap: 12 },
-  kasaCard: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  kasaCardHeader: { flexDirection: "row", alignItems: "center", padding: 16 },
-  kasaIconBox: {
-    width: 42,
-    height: 42,
-    borderRadius: 12,
+  kasaLeft: { flexDirection: "row", alignItems: "center", flex: 1 },
+  kasaIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 10,
     justifyContent: "center",
     alignItems: "center",
   },
-  kasaInfo: { flex: 1, marginLeft: 12 },
-  kasaName: { fontSize: 15, fontWeight: "600", color: "#1f2937" },
-  kasaType: { fontSize: 12, color: "#9ca3af", marginTop: 2 },
-  kasaRight: { alignItems: "flex-end", gap: 4 },
-  kasaBalance: { fontSize: 16, fontWeight: "700", color: "#1f2937" },
-  kasaBalanceNegative: { color: "#ef4444" },
+  kasaInfo: { marginLeft: 12, flex: 1 },
+  kasaName: { fontSize: 15, fontWeight: "600", color: "#111827" },
+  kasaType: { fontSize: 13, color: "#6b7280", marginTop: 2 },
+  kasaRight: { flexDirection: "row", alignItems: "center", gap: 8 },
+  kasaBalance: { fontSize: 15, fontWeight: "700", color: "#111827" },
 
-  // Expanded Content
+  // Expanded
   expandedContent: {
-    paddingHorizontal: 16,
-    paddingBottom: 16,
+    paddingHorizontal: 14,
+    paddingBottom: 14,
     borderTopWidth: 1,
     borderTopColor: "#f3f4f6",
   },
-  islemGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginTop: 14 },
+  historyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f9fafb",
+    padding: 12,
+    borderRadius: 10,
+    marginTop: 12,
+    gap: 10,
+  },
+  historyBtnText: {
+    flex: 1,
+    fontSize: 14,
+    fontWeight: "500",
+    color: "#374151",
+  },
+  islemBtnRow: { flexDirection: "row", gap: 8, marginTop: 12 },
   islemBtn: {
     flex: 1,
-    minWidth: "45%",
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 6,
+    gap: 4,
     paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: "#f9fafb",
+    borderRadius: 8,
     borderWidth: 1.5,
     borderColor: "#e5e7eb",
   },
   islemBtnText: { fontSize: 13, fontWeight: "600" },
-  transferBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 10,
-    backgroundColor: "#fffbeb",
-    borderWidth: 1.5,
-    borderColor: "#fcd34d",
-    marginTop: 8,
-  },
-  transferBtnText: { fontSize: 13, fontWeight: "600", color: "#f59e0b" },
 
   // Form
-  formContainer: { marginTop: 16, gap: 12 },
+  formContainer: { marginTop: 14, gap: 10 },
+  dateRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "#f9fafb",
+    padding: 12,
+    borderRadius: 8,
+  },
+  dateText: { fontSize: 14, color: "#374151", flex: 1 },
+  iosDatePicker: {
+    backgroundColor: "#f9fafb",
+    borderRadius: 10,
+    marginTop: 8,
+    overflow: "hidden",
+  },
+  datePickerDoneBtn: {
+    backgroundColor: "#3b82f6",
+    padding: 12,
+    alignItems: "center",
+  },
+  datePickerDoneBtnText: { color: "#fff", fontSize: 15, fontWeight: "600" },
   formLabel: {
     fontSize: 13,
     fontWeight: "600",
-    color: "#4b5563",
-    marginBottom: 8,
+    color: "#374151",
+    marginBottom: 6,
   },
   selectBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: "#f3f4f6",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    backgroundColor: "#f9fafb",
+    padding: 12,
+    borderRadius: 8,
   },
-  selectBtnText: { fontSize: 14, color: "#1f2937" },
-  kasaChipRow: { flexDirection: "row", gap: 8 },
-  kasaChip: {
+  selectBtnText: { fontSize: 14, color: "#111827" },
+  chipRow: { flexDirection: "row", gap: 8 },
+  chip: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
@@ -1293,105 +1669,122 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     backgroundColor: "#f3f4f6",
   },
-  kasaChipActive: { backgroundColor: "#f59e0b" },
-  kasaChipText: { fontSize: 13, fontWeight: "500", color: "#4b5563" },
-  kasaChipTextActive: { color: "#fff" },
-  kategoriList: {
-    backgroundColor: "#fff",
-    borderRadius: 10,
-    marginTop: 4,
-    maxHeight: 140,
-    borderWidth: 1,
-    borderColor: "#e5e7eb",
+  chipActive: { backgroundColor: "#f59e0b" },
+  chipText: { fontSize: 13, fontWeight: "500", color: "#374151" },
+  chipTextActive: { color: "#fff" },
+  // Picker Modal
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
   },
-  kategoriItem: {
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  pickerModal: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    width: "100%",
+    maxHeight: "60%",
+    overflow: "hidden",
+  },
+  pickerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111827",
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  pickerList: { maxHeight: 300 },
+  pickerItem: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
     borderBottomWidth: 1,
     borderBottomColor: "#f3f4f6",
   },
-  kategoriItemActive: { backgroundColor: "#dcfce7" },
-  kategoriItemText: { fontSize: 14, color: "#1f2937" },
-  kategoriItemTextActive: { color: "#10b981", fontWeight: "600" },
-  input: {
-    backgroundColor: "#f3f4f6",
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+  pickerItemSelected: { backgroundColor: "#dcfce7" },
+  pickerItemText: { fontSize: 15, color: "#111827" },
+  emptyPickerText: {
     fontSize: 14,
-    color: "#1f2937",
+    color: "#9ca3af",
+    textAlign: "center",
+    padding: 20,
+  },
+  input: {
+    backgroundColor: "#f9fafb",
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: "#111827",
   },
   amountRow: { flexDirection: "row", gap: 10 },
   amountInputBox: {
     flex: 1,
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#f3f4f6",
-    borderRadius: 10,
-    paddingHorizontal: 14,
+    backgroundColor: "#f9fafb",
+    borderRadius: 8,
+    paddingHorizontal: 12,
   },
   currencySymbol: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
     color: "#9ca3af",
     marginRight: 4,
   },
   amountInput: {
     flex: 1,
-    fontSize: 20,
-    fontWeight: "700",
-    color: "#1f2937",
-    paddingVertical: 12,
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111827",
+    paddingVertical: 10,
   },
   submitBtn: {
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
     justifyContent: "center",
     alignItems: "center",
   },
   submitBtnText: { fontSize: 14, fontWeight: "700", color: "#fff" },
-  viewAllBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 12,
-    marginTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
-    gap: 4,
-  },
-  viewAllBtnText: { fontSize: 14, fontWeight: "600", color: "#3b82f6" },
 
-  // Empty State
+  // Empty
   emptyState: {
     alignItems: "center",
     justifyContent: "center",
     padding: 40,
     backgroundColor: "#fff",
-    borderRadius: 16,
+    borderRadius: 14,
     borderWidth: 2,
     borderColor: "#e5e7eb",
     borderStyle: "dashed",
   },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#4b5563",
-    marginTop: 16,
-  },
-  emptyDesc: { fontSize: 13, color: "#9ca3af", marginTop: 4 },
-  emptyBtn: {
-    flexDirection: "row",
+  emptyText: { fontSize: 14, color: "#6b7280", marginTop: 12 },
+
+  // Quick Actions
+  quickActionsRow: { flexDirection: "row", gap: 12 },
+  quickActionBtn: {
+    flex: 1,
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 16,
     alignItems: "center",
-    gap: 6,
-    backgroundColor: "#10b981",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 10,
-    marginTop: 16,
   },
-  emptyBtnText: { fontSize: 14, fontWeight: "600", color: "#fff" },
+  quickActionIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  quickActionText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#374151",
+    textAlign: "center",
+  },
 
   // Modal
   modalContainer: { flex: 1, backgroundColor: "#fff" },
@@ -1400,21 +1793,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     paddingHorizontal: 16,
-    paddingTop: 20,
-    paddingBottom: 16,
+    paddingVertical: 16,
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },
-  modalTitle: { fontSize: 18, fontWeight: "600", color: "#1f2937" },
-  modalCloseBtn: { padding: 8 },
+  modalTitle: { fontSize: 18, fontWeight: "600", color: "#111827" },
   modalContent: { flex: 1, padding: 16 },
   modalSectionTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "600",
     color: "#6b7280",
     marginBottom: 12,
-    textTransform: "uppercase",
-    letterSpacing: 0.5,
   },
   targetItem: {
     flexDirection: "row",
@@ -1432,6 +1821,175 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   targetItemInfo: { flex: 1, marginLeft: 12 },
-  targetItemName: { fontSize: 15, fontWeight: "600", color: "#1f2937" },
+  targetItemName: { fontSize: 15, fontWeight: "600", color: "#111827" },
   targetItemBalance: { fontSize: 13, color: "#6b7280", marginTop: 2 },
+
+  // Hesap Ekle Butonu
+  addKasaBtn: { flexDirection: "row", alignItems: "center", gap: 4 },
+  addKasaBtnText: { fontSize: 14, color: "#3b82f6", fontWeight: "500" },
+
+  // Hesap Ekleme Modal
+  addKasaModal: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    width: "100%",
+    padding: 20,
+  },
+  addKasaTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111827",
+    marginBottom: 16,
+    textAlign: "center",
+  },
+  addKasaLabel: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#374151",
+    marginBottom: 8,
+    marginTop: 12,
+  },
+  addKasaInput: {
+    backgroundColor: "#f9fafb",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: "#111827",
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  kasaTypeRow: { flexDirection: "row", gap: 8 },
+  kasaTypeBtn: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: "#e5e7eb",
+    gap: 4,
+  },
+  kasaTypeBtnText: { fontSize: 11, fontWeight: "600", color: "#6b7280" },
+  addKasaAmountRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f9fafb",
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: "#e5e7eb",
+  },
+  addKasaCurrency: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#6b7280",
+    marginRight: 4,
+  },
+  addKasaAmountInput: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111827",
+    paddingVertical: 12,
+  },
+  addKasaBtnRow: { flexDirection: "row", gap: 12, marginTop: 20 },
+  addKasaCancelBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: "#f3f4f6",
+    alignItems: "center",
+  },
+  addKasaCancelBtnText: { fontSize: 15, fontWeight: "600", color: "#6b7280" },
+  addKasaSaveBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 10,
+    backgroundColor: "#3b82f6",
+    alignItems: "center",
+  },
+  addKasaSaveBtnText: { fontSize: 15, fontWeight: "600", color: "#fff" },
+
+  // Kategori Modal Stilleri
+  kategoriModalContainer: { flex: 1, backgroundColor: "#fff" },
+  kategoriModalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  kategoriModalTitle: { fontSize: 18, fontWeight: "600", color: "#111827" },
+  kategoriModalCloseBtn: { padding: 4 },
+  kategoriSearchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
+    marginHorizontal: 16,
+    marginVertical: 12,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    gap: 10,
+  },
+  kategoriSearchInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: "#111827",
+  },
+  kategoriScrollView: { flex: 1 },
+  kategoriListContent: { paddingHorizontal: 16, paddingBottom: 30 },
+  kategoriModalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 16,
+    paddingHorizontal: 4,
+  },
+  kategoriModalItemActive: {
+    backgroundColor: "#f0fdf4",
+    marginHorizontal: -4,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+  },
+  kategoriModalItemText: { fontSize: 16, color: "#374151" },
+  kategoriModalItemTextActive: { color: "#10b981", fontWeight: "600" },
+  kategoriSeparator: {
+    height: 1,
+    backgroundColor: "#f3f4f6",
+    marginVertical: 8,
+  },
+  kategoriGroup: { marginBottom: 16 },
+  kategoriAnaBaslik: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 12,
+    paddingHorizontal: 8,
+    backgroundColor: "#f3f4f6",
+    borderRadius: 8,
+    marginBottom: 4,
+  },
+  kategoriAnaBaslikText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#374151",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  kategoriAltItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingVertical: 14,
+    paddingLeft: 20,
+    paddingRight: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "#f3f4f6",
+  },
+  kategoriAltItemText: { fontSize: 15, color: "#4b5563" },
+  emptyKategori: { paddingVertical: 40, alignItems: "center" },
+  emptyKategoriText: { fontSize: 14, color: "#9ca3af" },
 });

@@ -47,6 +47,7 @@ export interface Kasa {
   balance: number;
   is_active: boolean;
   is_archived: boolean;
+  exclude_from_profit?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -99,7 +100,15 @@ export interface Kategori {
 export interface Islem {
   id: string;
   restaurant_id: string;
-  type: "gelir" | "gider" | "transfer" | "odeme" | "tahsilat";
+  type:
+    | "gelir"
+    | "gider"
+    | "transfer"
+    | "odeme"
+    | "tahsilat"
+    | "iade"
+    | "satis"
+    | "musteri_iade";
   amount: number;
   description?: string;
   date: string;
@@ -154,6 +163,7 @@ export interface Urun {
   kategori_id?: string;
   unit: string; // kg, adet, litre vb.
   default_price?: number;
+  kdv_rate?: number; // KDV oranı: 0, 1, 10, 20
   is_active: boolean;
   created_at: string;
   updated_at: string;

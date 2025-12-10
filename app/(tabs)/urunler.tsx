@@ -64,11 +64,20 @@ export default function UrunlerScreen() {
   const [formKategoriId, setFormKategoriId] = useState<string | null>(null);
   const [formUnit, setFormUnit] = useState("adet");
   const [formDefaultPrice, setFormDefaultPrice] = useState("");
+  const [formKdvRate, setFormKdvRate] = useState("10");
   const [formLoading, setFormLoading] = useState(false);
 
   // Dropdown state
   const [showKategoriDropdown, setShowKategoriDropdown] = useState(false);
   const [showBirimDropdown, setShowBirimDropdown] = useState(false);
+  const [showKdvDropdown, setShowKdvDropdown] = useState(false);
+
+  const kdvOranlari = [
+    { value: "0", label: "%0 KDV" },
+    { value: "1", label: "%1 KDV" },
+    { value: "10", label: "%10 KDV" },
+    { value: "20", label: "%20 KDV" },
+  ];
 
   useEffect(() => {
     fetchProfile();
@@ -109,6 +118,7 @@ export default function UrunlerScreen() {
     setFormKategoriId(null);
     setFormUnit("adet");
     setFormDefaultPrice("");
+    setFormKdvRate("10");
     setShowAddModal(true);
   };
 
@@ -118,6 +128,7 @@ export default function UrunlerScreen() {
     setFormKategoriId(urun.kategori_id || null);
     setFormUnit(urun.unit);
     setFormDefaultPrice(urun.default_price?.toString() || "");
+    setFormKdvRate(urun.kdv_rate?.toString() || "10");
     setShowAddModal(true);
   };
 
@@ -137,6 +148,7 @@ export default function UrunlerScreen() {
         default_price: formDefaultPrice
           ? parseFloat(formDefaultPrice)
           : undefined,
+        kdv_rate: formKdvRate ? parseInt(formKdvRate) : 10,
         is_active: true,
         restaurant_id: profile?.restaurant_id || "",
       };
@@ -459,6 +471,36 @@ export default function UrunlerScreen() {
             <Text style={styles.helperText}>
               Alış girişinde bu fiyat otomatik gelir
             </Text>
+
+            {/* KDV Oranı */}
+            <Text style={styles.formLabel}>KDV Oranı</Text>
+            <TouchableOpacity
+              style={styles.dropdown}
+              onPress={() => setShowKdvDropdown(!showKdvDropdown)}
+            >
+              <Text style={styles.dropdownText}>
+                {kdvOranlari.find((k) => k.value === formKdvRate)?.label ||
+                  "%10 KDV"}
+              </Text>
+              <ChevronDown size={18} color="#6b7280" />
+            </TouchableOpacity>
+
+            {showKdvDropdown ? (
+              <ScrollView style={styles.dropdownList} nestedScrollEnabled>
+                {kdvOranlari.map((kdv) => (
+                  <TouchableOpacity
+                    key={kdv.value}
+                    style={styles.dropdownItem}
+                    onPress={() => {
+                      setFormKdvRate(kdv.value);
+                      setShowKdvDropdown(false);
+                    }}
+                  >
+                    <Text style={styles.dropdownItemText}>{kdv.label}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            ) : null}
           </ScrollView>
         </SafeAreaView>
       </Modal>

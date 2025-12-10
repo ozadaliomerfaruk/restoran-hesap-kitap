@@ -49,9 +49,16 @@ if (
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-type IslemTipi = "alis" | "iade" | "odeme" | "tahsilat";
+type IslemTipi =
+  | "alis"
+  | "iade"
+  | "odeme"
+  | "tahsilat"
+  | "satis"
+  | "musteri_iade";
 
-const islemTipleri = [
+// Tedarikçi işlem tipleri
+const tedarikciIslemTipleri = [
   {
     key: "alis" as IslemTipi,
     label: "ALIŞ",
@@ -79,6 +86,38 @@ const islemTipleri = [
     icon: ArrowDownLeft,
     color: "#10b981",
     bgColor: "#ecfdf5",
+  },
+];
+
+// Müşteri işlem tipleri
+const musteriIslemTipleri = [
+  {
+    key: "satis" as IslemTipi,
+    label: "SATIŞ",
+    icon: ShoppingCart,
+    color: "#10b981",
+    bgColor: "#ecfdf5",
+  },
+  {
+    key: "musteri_iade" as IslemTipi,
+    label: "İADE",
+    icon: RotateCcw,
+    color: "#f59e0b",
+    bgColor: "#fffbeb",
+  },
+  {
+    key: "odeme" as IslemTipi,
+    label: "ÖDEME",
+    icon: ArrowUpRight,
+    color: "#ef4444",
+    bgColor: "#fef2f2",
+  },
+  {
+    key: "tahsilat" as IslemTipi,
+    label: "TAHSİLAT",
+    icon: ArrowDownLeft,
+    color: "#3b82f6",
+    bgColor: "#eff6ff",
   },
 ];
 
@@ -285,7 +324,14 @@ export default function CariScreen() {
     setFormLoading(true);
 
     // İşlem tipini belirle
-    let islemType: "gider" | "gelir" | "odeme" | "tahsilat";
+    let islemType:
+      | "gider"
+      | "gelir"
+      | "odeme"
+      | "tahsilat"
+      | "iade"
+      | "satis"
+      | "musteri_iade";
     let description = formDescription.trim();
 
     switch (activeIslemTipi) {
@@ -294,8 +340,16 @@ export default function CariScreen() {
         if (!description) description = `${cari.name} - Alış`;
         break;
       case "iade":
-        islemType = "gelir";
-        if (!description) description = `${cari.name} - İade`;
+        islemType = "iade";
+        if (!description) description = `${cari.name} - Tedarikçi İadesi`;
+        break;
+      case "satis":
+        islemType = "satis";
+        if (!description) description = `${cari.name} - Satış`;
+        break;
+      case "musteri_iade":
+        islemType = "musteri_iade";
+        if (!description) description = `${cari.name} - Müşteri İadesi`;
         break;
       case "odeme":
         islemType = "odeme";
@@ -310,7 +364,7 @@ export default function CariScreen() {
         return;
     }
 
-    // Alış ve iade için kasa yok, sadece borç kaydı
+    // Alış, iade, satış, müşteri iadesi için kasa yok, sadece borç kaydı
     const kasaId =
       activeIslemTipi === "odeme" || activeIslemTipi === "tahsilat"
         ? formKasaId
@@ -402,9 +456,12 @@ export default function CariScreen() {
         {/* Expanded Content */}
         {isExpanded && (
           <View style={styles.expandedContent}>
-            {/* İşlem Tipleri */}
+            {/* İşlem Tipleri - Cari tipine göre */}
             <View style={styles.islemTipleri}>
-              {islemTipleri.map((tip) => {
+              {(cari.type === "tedarikci"
+                ? tedarikciIslemTipleri
+                : musteriIslemTipleri
+              ).map((tip) => {
                 const Icon = tip.icon;
                 const isActive = activeIslemTipi === tip.key;
                 return (
@@ -534,9 +591,10 @@ export default function CariScreen() {
                     style={[
                       styles.saveBtn,
                       {
-                        backgroundColor: islemTipleri.find(
-                          (t) => t.key === activeIslemTipi
-                        )?.color,
+                        backgroundColor: (cari.type === "tedarikci"
+                          ? tedarikciIslemTipleri
+                          : musteriIslemTipleri
+                        ).find((t) => t.key === activeIslemTipi)?.color,
                       },
                       formLoading && styles.saveBtnDisabled,
                     ]}
