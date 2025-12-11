@@ -32,12 +32,14 @@ import {
   Check,
   Search,
   PlusCircle,
+  EyeOff,
 } from "lucide-react-native";
 import { useStore } from "../../src/store/useStore";
 import { supabase } from "../../src/lib/supabase";
 import AddCariModal from "../../src/components/AddCariModal";
 import CariDetayModal from "../../src/components/CariDetayModal";
 import KalemliFaturaModal from "../../src/components/Kalemlifaturamodal";
+import MusteriKalemliFaturaModal from "../../src/components/MusteriKalemliFaturaModal";
 import DatePickerField from "../../src/components/DatePickerField";
 import { Cari, CariType } from "../../src/types";
 
@@ -138,6 +140,7 @@ export default function CariScreen() {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDetayModal, setShowDetayModal] = useState(false);
   const [showKalemliModal, setShowKalemliModal] = useState(false);
+  const [showMusteriKalemliModal, setShowMusteriKalemliModal] = useState(false);
   const [selectedCari, setSelectedCari] = useState<Cari | null>(null);
   const [filter, setFilter] = useState<"all" | CariType>("all");
   const [refreshing, setRefreshing] = useState(false);
@@ -307,8 +310,15 @@ export default function CariScreen() {
     setShowKategoriPicker(false);
   };
 
+  // Virgülü noktaya çeviren yardımcı fonksiyon (Türkçe klavye desteği)
+  const parseAmount = (value: string): number => {
+    const normalized = value.replace(",", ".");
+    return parseFloat(normalized) || 0;
+  };
+
   const handleSubmit = async (cari: Cari) => {
-    if (!formAmount || parseFloat(formAmount) <= 0) {
+    const amount = parseAmount(formAmount);
+    if (!formAmount || amount <= 0) {
       Alert.alert("Hata", "Geçerli bir tutar girin");
       return;
     }
@@ -375,7 +385,7 @@ export default function CariScreen() {
 
     const { error } = await addIslem({
       type: islemType,
-      amount: parseFloat(formAmount),
+      amount: amount,
       description,
       date: formDate,
       kasa_id: kasaId,
@@ -396,13 +406,17 @@ export default function CariScreen() {
     }
   };
 
-  // Toplam borç/alacak hesapla
+  // Toplam borç/alacak hesapla - sadece hesaba dahil olanlar
   const toplamTedarikciBorc = cariler
-    .filter((c) => c.type === "tedarikci" && c.balance > 0)
+    .filter(
+      (c) => c.type === "tedarikci" && c.balance > 0 && c.include_in_reports
+    )
     .reduce((sum, c) => sum + c.balance, 0);
 
   const toplamMusteriAlacak = cariler
-    .filter((c) => c.type === "musteri" && c.balance > 0)
+    .filter(
+      (c) => c.type === "musteri" && c.balance > 0 && c.include_in_reports
+    )
     .reduce((sum, c) => sum + c.balance, 0);
 
   const nakitBankaKasalar = kasalar.filter(
@@ -412,12 +426,17 @@ export default function CariScreen() {
   const renderCariCard = (cari: Cari) => {
     const isExpanded = expandedCariId === cari.id;
     const balanceInfo = getBalanceText(cari);
+    const isExcluded = !cari.include_in_reports;
 
     return (
       <View key={cari.id} style={styles.cariContainer}>
         {/* Ana Kart */}
         <TouchableOpacity
-          style={[styles.cariCard, isExpanded && styles.cariCardExpanded]}
+          style={[
+            styles.cariCard,
+            isExpanded && styles.cariCardExpanded,
+            isExcluded && styles.cariCardExcluded,
+          ]}
           onPress={() => handleCariPress(cari)}
           activeOpacity={0.7}
         >
@@ -429,17 +448,38 @@ export default function CariScreen() {
                   backgroundColor:
                     cari.type === "tedarikci" ? "#dbeafe" : "#dcfce7",
                 },
+                isExcluded && styles.cariIconExcluded,
               ]}
             >
               {cari.type === "tedarikci" ? (
-                <Building2 size={22} color="#3b82f6" />
+                <Building2
+                  size={22}
+                  color={isExcluded ? "#9ca3af" : "#3b82f6"}
+                />
               ) : (
-                <Users size={22} color="#10b981" />
+                <Users size={22} color={isExcluded ? "#9ca3af" : "#10b981"} />
               )}
             </View>
             <View style={styles.cariInfo}>
-              <Text style={styles.cariName}>{cari.name}</Text>
-              <Text style={[styles.cariBalance, { color: balanceInfo.color }]}>
+              <View style={styles.cariNameRow}>
+                <Text
+                  style={[
+                    styles.cariName,
+                    isExcluded && styles.cariNameExcluded,
+                  ]}
+                >
+                  {cari.name}
+                </Text>
+                {isExcluded && (
+                  <EyeOff size={14} color="#9ca3af" style={{ marginLeft: 6 }} />
+                )}
+              </View>
+              <Text
+                style={[
+                  styles.cariBalance,
+                  { color: isExcluded ? "#9ca3af" : balanceInfo.color },
+                ]}
+              >
                 {balanceInfo.text}
               </Text>
             </View>
@@ -499,6 +539,25 @@ export default function CariScreen() {
                 <FileText size={16} color="#8b5cf6" />
                 <Text style={styles.kalemliBtnText}>Kalemli Fatura Girişi</Text>
                 <ChevronRight size={16} color="#8b5cf6" />
+              </TouchableOpacity>
+            )}
+
+            {/* Kalemli Satış Butonu - Sadece Müşteri için */}
+            {cari.type === "musteri" && (
+              <TouchableOpacity
+                style={[styles.kalemliBtn, styles.kalemliBtnMusteri]}
+                onPress={() => {
+                  setSelectedCari(cari);
+                  setShowMusteriKalemliModal(true);
+                }}
+              >
+                <FileText size={16} color="#10b981" />
+                <Text
+                  style={[styles.kalemliBtnText, styles.kalemliBtnTextMusteri]}
+                >
+                  Kalemli Satış Faturası
+                </Text>
+                <ChevronRight size={16} color="#10b981" />
               </TouchableOpacity>
             )}
 
@@ -771,6 +830,15 @@ export default function CariScreen() {
         visible={showKalemliModal}
         onClose={() => {
           setShowKalemliModal(false);
+          setSelectedCari(null);
+          fetchCariler();
+        }}
+        cari={selectedCari}
+      />
+      <MusteriKalemliFaturaModal
+        visible={showMusteriKalemliModal}
+        onClose={() => {
+          setShowMusteriKalemliModal(false);
           setSelectedCari(null);
           fetchCariler();
         }}
@@ -1243,10 +1311,17 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     flex: 1,
   },
+  cariNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
   cariName: {
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
+  },
+  cariNameExcluded: {
+    color: "#9ca3af",
   },
   cariBalance: {
     fontSize: 15,
@@ -1254,6 +1329,13 @@ const styles = StyleSheet.create({
   },
   cariRight: {
     padding: 4,
+  },
+  cariCardExcluded: {
+    opacity: 0.7,
+    backgroundColor: "#f9fafb",
+  },
+  cariIconExcluded: {
+    backgroundColor: "#f3f4f6",
   },
   expandedContent: {
     backgroundColor: "#fff",
@@ -1292,11 +1374,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     gap: 8,
   },
+  kalemliBtnMusteri: {
+    backgroundColor: "#ecfdf5",
+  },
   kalemliBtnText: {
     flex: 1,
     fontSize: 15,
     fontWeight: "600",
     color: "#8b5cf6",
+  },
+  kalemliBtnTextMusteri: {
+    color: "#10b981",
   },
   formContainer: {
     backgroundColor: "#f9fafb",

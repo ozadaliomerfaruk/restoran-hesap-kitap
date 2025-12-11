@@ -73,13 +73,13 @@ const menuItems: MenuItem[] = [
     route: "/kategoriler",
   },
   {
-    id: "urunler",
-    title: "Ürünler",
+    id: "hammaddeler",
+    title: "Hammaddeler",
     subtitle: "Ürün ve malzeme tanımları",
     icon: Package,
     color: "#3b82f6",
     bgColor: "#dbeafe",
-    route: "/urunler",
+    route: "/hammaddeler",
   },
   {
     id: "tekrarlayan",

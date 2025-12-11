@@ -148,6 +148,21 @@ export default function CariDetayModal({
     });
   };
 
+  // Tarih ayracı için uzun format (10 Aralık 2025)
+  const formatDateHeader = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("tr-TR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  // Tarih karşılaştırması için sadece tarih kısmı (2025-12-10)
+  const getDateKey = (dateStr: string) => {
+    return dateStr.split("T")[0];
+  };
+
   const getBalanceInfo = () => {
     if (!currentCari) return { text: "Borç yok", color: "#6b7280" };
     const balance = currentCari.balance || 0;
@@ -419,34 +434,60 @@ export default function CariDetayModal({
                 .delete()
                 .eq("islem_id", selectedIslem.id);
 
-              // Bakiyeleri geri al
+              // Cari bakiyesini geri al - cari tipine göre doğru mantık
               if (currentCari) {
-                if (
-                  selectedIslem.type === "gider" ||
-                  selectedIslem.type === "tahsilat"
-                ) {
+                let cariMultiplier = 0;
+                const cariType = currentCari.type;
+
+                // Tedarikçi işlemleri
+                if (cariType === "tedarikci") {
+                  if (selectedIslem.type === "gider") {
+                    cariMultiplier = -1; // Alış silindi, borcumuz azaldı
+                  } else if (selectedIslem.type === "iade") {
+                    cariMultiplier = 1; // İade silindi, borcumuz tekrar arttı
+                  } else if (selectedIslem.type === "odeme") {
+                    cariMultiplier = 1; // Ödeme silindi, borcumuz tekrar arttı
+                  } else if (selectedIslem.type === "tahsilat") {
+                    cariMultiplier = -1; // Tahsilat silindi, borcumuz azaldı
+                  }
+                }
+                // Müşteri işlemleri
+                else if (cariType === "musteri") {
+                  if (selectedIslem.type === "satis") {
+                    cariMultiplier = -1; // Satış silindi, müşteri borcu azaldı
+                  } else if (selectedIslem.type === "musteri_iade") {
+                    cariMultiplier = 1; // İade silindi, müşteri borcu tekrar arttı
+                  } else if (selectedIslem.type === "odeme") {
+                    cariMultiplier = -1; // Ödeme silindi (avans geri alındı), müşteri borcu azaldı
+                  } else if (selectedIslem.type === "tahsilat") {
+                    cariMultiplier = 1; // Tahsilat silindi, müşteri borcu tekrar arttı
+                  }
+                }
+
+                if (cariMultiplier !== 0) {
                   await supabase.rpc("update_cari_balance", {
                     cari_id: currentCari.id,
-                    amount: -selectedIslem.amount,
-                  });
-                } else {
-                  await supabase.rpc("update_cari_balance", {
-                    cari_id: currentCari.id,
-                    amount: selectedIslem.amount,
+                    amount: selectedIslem.amount * cariMultiplier,
                   });
                 }
               }
 
+              // Kasa bakiyesini geri al
               if (selectedIslem.kasa_id) {
                 if (
                   selectedIslem.type === "odeme" ||
                   selectedIslem.type === "gider"
                 ) {
+                  // Kasadan çıkmıştı, geri al (+)
                   await supabase.rpc("update_kasa_balance", {
                     kasa_id: selectedIslem.kasa_id,
                     amount: selectedIslem.amount,
                   });
-                } else {
+                } else if (
+                  selectedIslem.type === "gelir" ||
+                  selectedIslem.type === "tahsilat"
+                ) {
+                  // Kasaya girmişti, geri al (-)
                   await supabase.rpc("update_kasa_balance", {
                     kasa_id: selectedIslem.kasa_id,
                     amount: -selectedIslem.amount,
@@ -730,73 +771,92 @@ export default function CariDetayModal({
             )}
 
             {cariIslemleri.length > 0 ? (
-              cariIslemleri.map((islem) => (
-                <TouchableOpacity
-                  key={islem.id}
-                  style={styles.islemItem}
-                  onPress={() => openIslemDetay(islem)}
-                  activeOpacity={0.7}
-                >
-                  <View style={styles.islemLeft}>
-                    <View
-                      style={[
-                        styles.islemIconBox,
-                        { backgroundColor: `${getIslemColor(islem.type)}15` },
-                      ]}
-                    >
-                      {getIslemIcon(islem.type)}
-                    </View>
-                    <View style={styles.islemInfo}>
-                      <Text
-                        style={[
-                          styles.islemType,
-                          { color: getIslemColor(islem.type) },
-                        ]}
-                      >
-                        {getIslemLabel(islem.type)}
-                      </Text>
-                      <Text style={styles.islemDate}>
-                        {formatDate(islem.date)}
-                      </Text>
-                      {islem.description && (
-                        <Text style={styles.islemDesc} numberOfLines={1}>
-                          {islem.description}
+              cariIslemleri.map((islem, index) => {
+                // Önceki işlemin tarihiyle karşılaştır
+                const prevIslem = index > 0 ? cariIslemleri[index - 1] : null;
+                const showDateHeader =
+                  !prevIslem ||
+                  getDateKey(prevIslem.date) !== getDateKey(islem.date);
+
+                return (
+                  <View key={islem.id}>
+                    {/* Tarih Ayracı */}
+                    {showDateHeader && (
+                      <View style={styles.dateSeparator}>
+                        <View style={styles.dateSeparatorLine} />
+                        <Text style={styles.dateSeparatorText}>
+                          {formatDateHeader(islem.date)}
                         </Text>
-                      )}
-                      {islem.kategori && (
-                        <View style={styles.islemKategori}>
-                          <Tag size={10} color="#8b5cf6" />
-                          <Text style={styles.islemKategoriText}>
-                            {islem.kategori.name}
-                          </Text>
+                        <View style={styles.dateSeparatorLine} />
+                      </View>
+                    )}
+
+                    <TouchableOpacity
+                      style={styles.islemItem}
+                      onPress={() => openIslemDetay(islem)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.islemLeft}>
+                        <View
+                          style={[
+                            styles.islemIconBox,
+                            {
+                              backgroundColor: `${getIslemColor(islem.type)}15`,
+                            },
+                          ]}
+                        >
+                          {getIslemIcon(islem.type)}
                         </View>
-                      )}
-                      {islem.kasa && (
-                        <Text style={styles.islemKasa}>
-                          {islem.type === "odeme" || islem.type === "gider"
-                            ? "← "
-                            : "→ "}
-                          {islem.kasa.name}
+                        <View style={styles.islemInfo}>
+                          <Text
+                            style={[
+                              styles.islemType,
+                              { color: getIslemColor(islem.type) },
+                            ]}
+                          >
+                            {getIslemLabel(islem.type)}
+                          </Text>
+                          {islem.description && (
+                            <Text style={styles.islemDesc} numberOfLines={1}>
+                              {islem.description}
+                            </Text>
+                          )}
+                          {islem.kategori && (
+                            <View style={styles.islemKategori}>
+                              <Tag size={10} color="#8b5cf6" />
+                              <Text style={styles.islemKategoriText}>
+                                {islem.kategori.name}
+                              </Text>
+                            </View>
+                          )}
+                          {islem.kasa && (
+                            <Text style={styles.islemKasa}>
+                              {islem.type === "odeme" || islem.type === "gider"
+                                ? "← "
+                                : "→ "}
+                              {islem.kasa.name}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                      <View style={styles.islemRight}>
+                        <Text
+                          style={[
+                            styles.islemAmount,
+                            { color: getIslemColor(islem.type) },
+                          ]}
+                        >
+                          {islem.type === "gider" || islem.type === "odeme"
+                            ? "-"
+                            : "+"}
+                          {formatCurrency(islem.amount)}
                         </Text>
-                      )}
-                    </View>
+                        <ChevronRight size={16} color="#9ca3af" />
+                      </View>
+                    </TouchableOpacity>
                   </View>
-                  <View style={styles.islemRight}>
-                    <Text
-                      style={[
-                        styles.islemAmount,
-                        { color: getIslemColor(islem.type) },
-                      ]}
-                    >
-                      {islem.type === "gider" || islem.type === "odeme"
-                        ? "-"
-                        : "+"}
-                      {formatCurrency(islem.amount)}
-                    </Text>
-                    <ChevronRight size={16} color="#9ca3af" />
-                  </View>
-                </TouchableOpacity>
-              ))
+                );
+              })
             ) : currentCari.initial_balance === 0 ? (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyText}>Henüz işlem yok</Text>
@@ -1291,6 +1351,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#111827",
     marginBottom: 12,
+  },
+  dateSeparator: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 12,
+    gap: 10,
+  },
+  dateSeparatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#e5e7eb",
+  },
+  dateSeparatorText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6b7280",
   },
   islemItem: {
     flexDirection: "row",

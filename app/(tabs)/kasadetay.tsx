@@ -256,6 +256,21 @@ export default function KasaDetayScreen() {
     });
   };
 
+  // Tarih ayracı için uzun format (10 Aralık 2025)
+  const formatDateHeader = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("tr-TR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  // Tarih karşılaştırması için sadece tarih kısmı (2025-12-10)
+  const getDateKey = (dateStr: string) => {
+    return dateStr.split("T")[0];
+  };
+
   const getIslemIcon = (islem: BirlesikIslem) => {
     if (islem.type === "transfer") {
       return islem.isTransferIn ? (
@@ -945,219 +960,235 @@ export default function KasaDetayScreen() {
           </Text>
 
           {kasaIslemleri.length > 0 ? (
-            kasaIslemleri.map((islem) => {
+            kasaIslemleri.map((islem, index) => {
               const isExpanded = expandedIslemId === islem.id;
+              // Önceki işlemin tarihiyle karşılaştır
+              const prevIslem = index > 0 ? kasaIslemleri[index - 1] : null;
+              const showDateHeader =
+                !prevIslem ||
+                getDateKey(prevIslem.date) !== getDateKey(islem.date);
+
               return (
-                <View
-                  key={`${islem.source}-${islem.id}`}
-                  style={styles.islemCard}
-                >
-                  {/* Üst Kısım - Tıklanabilir */}
-                  <TouchableOpacity
-                    style={styles.islemHeader}
-                    onPress={() => toggleIslemExpand(islem)}
-                    activeOpacity={0.7}
-                  >
-                    <View style={styles.islemLeft}>
-                      <View
-                        style={[
-                          styles.islemIconBox,
-                          { backgroundColor: `${getIslemColor(islem)}15` },
-                        ]}
-                      >
-                        {getIslemIcon(islem)}
+                <View key={`${islem.source}-${islem.id}`}>
+                  {/* Tarih Ayracı */}
+                  {showDateHeader && (
+                    <View style={styles.dateSeparator}>
+                      <View style={styles.dateSeparatorLine} />
+                      <Text style={styles.dateSeparatorText}>
+                        {formatDateHeader(islem.date)}
+                      </Text>
+                      <View style={styles.dateSeparatorLine} />
+                    </View>
+                  )}
+
+                  <View style={styles.islemCard}>
+                    {/* Üst Kısım - Tıklanabilir */}
+                    <TouchableOpacity
+                      style={styles.islemHeader}
+                      onPress={() => toggleIslemExpand(islem)}
+                      activeOpacity={0.7}
+                    >
+                      <View style={styles.islemLeft}>
+                        <View
+                          style={[
+                            styles.islemIconBox,
+                            { backgroundColor: `${getIslemColor(islem)}15` },
+                          ]}
+                        >
+                          {getIslemIcon(islem)}
+                        </View>
+                        <View style={styles.islemInfo}>
+                          <Text
+                            style={[
+                              styles.islemType,
+                              { color: getIslemColor(islem) },
+                            ]}
+                          >
+                            {getIslemLabel(islem)}
+                          </Text>
+                          {islem.cari && (
+                            <Text style={styles.islemCari}>
+                              {islem.cari.name}
+                            </Text>
+                          )}
+                          {islem.personel && (
+                            <Text style={styles.islemPersonel}>
+                              {islem.personel.name}
+                            </Text>
+                          )}
+                          {islem.kategori && (
+                            <Text style={styles.islemKategori}>
+                              {islem.kategori.name}
+                            </Text>
+                          )}
+                          {islem.type === "transfer" && islem.target_kasa && (
+                            <Text style={styles.islemTransferKasa}>
+                              {islem.isTransferIn ? "← " : "→ "}
+                              {islem.target_kasa.name}
+                            </Text>
+                          )}
+                          {islem.description && (
+                            <Text
+                              style={styles.islemDesc}
+                              numberOfLines={isExpanded ? undefined : 1}
+                            >
+                              {islem.description}
+                            </Text>
+                          )}
+                        </View>
                       </View>
-                      <View style={styles.islemInfo}>
+                      <View style={styles.islemRight}>
                         <Text
                           style={[
-                            styles.islemType,
+                            styles.islemAmount,
                             { color: getIslemColor(islem) },
                           ]}
                         >
-                          {getIslemLabel(islem)}
+                          {getIslemSign(islem)}
+                          {formatCurrency(islem.amount)}
                         </Text>
-                        <Text style={styles.islemDate}>
-                          {formatDate(islem.date)}
-                        </Text>
-                        {islem.cari && (
-                          <Text style={styles.islemCari}>
-                            {islem.cari.name}
-                          </Text>
-                        )}
-                        {islem.personel && (
-                          <Text style={styles.islemPersonel}>
-                            {islem.personel.name}
-                          </Text>
-                        )}
-                        {islem.kategori && (
-                          <Text style={styles.islemKategori}>
-                            {islem.kategori.name}
-                          </Text>
-                        )}
-                        {islem.type === "transfer" && islem.target_kasa && (
-                          <Text style={styles.islemTransferKasa}>
-                            {islem.isTransferIn ? "← " : "→ "}
-                            {islem.target_kasa.name}
-                          </Text>
-                        )}
-                        {islem.description && (
-                          <Text
-                            style={styles.islemDesc}
-                            numberOfLines={isExpanded ? undefined : 1}
-                          >
-                            {islem.description}
-                          </Text>
+                        {isExpanded ? (
+                          <ChevronUp size={20} color="#9ca3af" />
+                        ) : (
+                          <ChevronDown size={20} color="#9ca3af" />
                         )}
                       </View>
-                    </View>
-                    <View style={styles.islemRight}>
-                      <Text
-                        style={[
-                          styles.islemAmount,
-                          { color: getIslemColor(islem) },
-                        ]}
-                      >
-                        {getIslemSign(islem)}
-                        {formatCurrency(islem.amount)}
-                      </Text>
-                      {isExpanded ? (
-                        <ChevronUp size={20} color="#9ca3af" />
-                      ) : (
-                        <ChevronDown size={20} color="#9ca3af" />
-                      )}
-                    </View>
-                  </TouchableOpacity>
+                    </TouchableOpacity>
 
-                  {/* Genişleyen Düzenleme Alanı */}
-                  {isExpanded && (
-                    <View style={styles.islemExpandedContent}>
-                      {/* Tutar */}
-                      <View style={styles.editRow}>
-                        <Text style={styles.editRowLabel}>Tutar</Text>
-                        <View style={styles.editAmountBox}>
-                          <Text style={styles.editCurrency}>₺</Text>
-                          <TextInput
-                            style={styles.editAmountInput}
-                            value={editIslemAmount}
-                            onChangeText={setEditIslemAmount}
-                            keyboardType="numeric"
-                            placeholder="0"
-                            placeholderTextColor="#9ca3af"
-                          />
+                    {/* Genişleyen Düzenleme Alanı */}
+                    {isExpanded && (
+                      <View style={styles.islemExpandedContent}>
+                        {/* Tutar */}
+                        <View style={styles.editRow}>
+                          <Text style={styles.editRowLabel}>Tutar</Text>
+                          <View style={styles.editAmountBox}>
+                            <Text style={styles.editCurrency}>₺</Text>
+                            <TextInput
+                              style={styles.editAmountInput}
+                              value={editIslemAmount}
+                              onChangeText={setEditIslemAmount}
+                              keyboardType="numeric"
+                              placeholder="0"
+                              placeholderTextColor="#9ca3af"
+                            />
+                          </View>
                         </View>
-                      </View>
 
-                      {/* Tarih */}
-                      <View style={styles.editRow}>
-                        <Text style={styles.editRowLabel}>Tarih</Text>
-                        <TouchableOpacity
-                          style={styles.editDateBtn}
-                          onPress={() => setShowDatePicker(true)}
-                        >
-                          <Calendar size={18} color="#6b7280" />
-                          <Text style={styles.editDateText}>
-                            {editIslemDate.toLocaleDateString("tr-TR", {
-                              day: "numeric",
-                              month: "long",
-                              year: "numeric",
-                            })}
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
+                        {/* Tarih */}
+                        <View style={styles.editRow}>
+                          <Text style={styles.editRowLabel}>Tarih</Text>
+                          <TouchableOpacity
+                            style={styles.editDateBtn}
+                            onPress={() => setShowDatePicker(true)}
+                          >
+                            <Calendar size={18} color="#6b7280" />
+                            <Text style={styles.editDateText}>
+                              {editIslemDate.toLocaleDateString("tr-TR", {
+                                day: "numeric",
+                                month: "long",
+                                year: "numeric",
+                              })}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
 
-                      {showDatePicker &&
-                        (Platform.OS === "ios" ? (
-                          <View style={styles.iosDatePicker}>
+                        {showDatePicker &&
+                          (Platform.OS === "ios" ? (
+                            <View style={styles.iosDatePicker}>
+                              <DateTimePicker
+                                value={editIslemDate}
+                                mode="date"
+                                display="spinner"
+                                onChange={(event, date) => {
+                                  if (date) setEditIslemDate(date);
+                                }}
+                                locale="tr-TR"
+                              />
+                              <TouchableOpacity
+                                style={styles.datePickerDoneBtn}
+                                onPress={() => setShowDatePicker(false)}
+                              >
+                                <Text style={styles.datePickerDoneBtnText}>
+                                  Tamam
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          ) : (
                             <DateTimePicker
                               value={editIslemDate}
                               mode="date"
-                              display="spinner"
+                              display="default"
                               onChange={(event, date) => {
+                                setShowDatePicker(false);
                                 if (date) setEditIslemDate(date);
                               }}
-                              locale="tr-TR"
                             />
-                            <TouchableOpacity
-                              style={styles.datePickerDoneBtn}
-                              onPress={() => setShowDatePicker(false)}
-                            >
-                              <Text style={styles.datePickerDoneBtnText}>
-                                Tamam
-                              </Text>
-                            </TouchableOpacity>
-                          </View>
-                        ) : (
-                          <DateTimePicker
-                            value={editIslemDate}
-                            mode="date"
-                            display="default"
-                            onChange={(event, date) => {
-                              setShowDatePicker(false);
-                              if (date) setEditIslemDate(date);
-                            }}
-                          />
-                        ))}
+                          ))}
 
-                      {/* Kategori - sadece gelir/gider için */}
-                      {islem.source === "islem" &&
-                        ["gelir", "gider"].includes(islem.type) && (
-                          <View style={styles.editRow}>
-                            <Text style={styles.editRowLabel}>Kategori</Text>
-                            <TouchableOpacity
-                              style={styles.editSelectBtn}
-                              onPress={() => setShowKategoriPicker(true)}
-                            >
-                              <Text
-                                style={[
-                                  styles.editSelectText,
-                                  !editIslemKategori && { color: "#9ca3af" },
-                                ]}
+                        {/* Kategori - sadece gelir/gider için */}
+                        {islem.source === "islem" &&
+                          ["gelir", "gider"].includes(islem.type) && (
+                            <View style={styles.editRow}>
+                              <Text style={styles.editRowLabel}>Kategori</Text>
+                              <TouchableOpacity
+                                style={styles.editSelectBtn}
+                                onPress={() => setShowKategoriPicker(true)}
                               >
-                                {editIslemKategori
-                                  ? kategoriler.find(
-                                      (k) => k.id === editIslemKategori
-                                    )?.name
-                                  : "Seçilmedi"}
-                              </Text>
-                              <ChevronDown size={18} color="#6b7280" />
-                            </TouchableOpacity>
-                          </View>
-                        )}
+                                <Text
+                                  style={[
+                                    styles.editSelectText,
+                                    !editIslemKategori && { color: "#9ca3af" },
+                                  ]}
+                                >
+                                  {editIslemKategori
+                                    ? kategoriler.find(
+                                        (k) => k.id === editIslemKategori
+                                      )?.name
+                                    : "Seçilmedi"}
+                                </Text>
+                                <ChevronDown size={18} color="#6b7280" />
+                              </TouchableOpacity>
+                            </View>
+                          )}
 
-                      {/* Açıklama */}
-                      <View style={styles.editRow}>
-                        <Text style={styles.editRowLabel}>Açıklama</Text>
-                        <TextInput
-                          style={styles.editDescInput}
-                          value={editIslemDesc}
-                          onChangeText={setEditIslemDesc}
-                          placeholder="Açıklama ekle..."
-                          placeholderTextColor="#9ca3af"
-                        />
-                      </View>
+                        {/* Açıklama */}
+                        <View style={styles.editRow}>
+                          <Text style={styles.editRowLabel}>Açıklama</Text>
+                          <TextInput
+                            style={styles.editDescInput}
+                            value={editIslemDesc}
+                            onChangeText={setEditIslemDesc}
+                            placeholder="Açıklama ekle..."
+                            placeholderTextColor="#9ca3af"
+                          />
+                        </View>
 
-                      {/* Butonlar */}
-                      <View style={styles.editBtnRow}>
-                        <TouchableOpacity
-                          style={styles.deleteBtn}
-                          onPress={() => handleDeleteIslem(islem)}
-                        >
-                          <Trash2 size={18} color="#ef4444" />
-                          <Text style={styles.deleteBtnText}>Sil</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.saveBtn, loading && { opacity: 0.6 }]}
-                          onPress={() => handleSaveIslem(islem)}
-                          disabled={loading}
-                        >
-                          <Check size={18} color="#fff" />
-                          <Text style={styles.saveBtnText}>
-                            {loading ? "..." : "Kaydet"}
-                          </Text>
-                        </TouchableOpacity>
+                        {/* Butonlar */}
+                        <View style={styles.editBtnRow}>
+                          <TouchableOpacity
+                            style={styles.deleteBtn}
+                            onPress={() => handleDeleteIslem(islem)}
+                          >
+                            <Trash2 size={18} color="#ef4444" />
+                            <Text style={styles.deleteBtnText}>Sil</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[
+                              styles.saveBtn,
+                              loading && { opacity: 0.6 },
+                            ]}
+                            onPress={() => handleSaveIslem(islem)}
+                            disabled={loading}
+                          >
+                            <Check size={18} color="#fff" />
+                            <Text style={styles.saveBtnText}>
+                              {loading ? "..." : "Kaydet"}
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
                       </View>
-                    </View>
-                  )}
+                    )}
+                  </View>
                 </View>
               );
             })
@@ -2061,6 +2092,24 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#111827",
     marginBottom: 14,
+  },
+
+  // Tarih Ayracı
+  dateSeparator: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 12,
+    gap: 10,
+  },
+  dateSeparatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#e5e7eb",
+  },
+  dateSeparatorText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6b7280",
   },
 
   // İşlem Card - Akordeon

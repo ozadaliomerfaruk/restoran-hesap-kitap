@@ -109,7 +109,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="urunler"
+        name="hammaddeler"
         options={{
           href: null,
         }}
@@ -128,6 +128,12 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="kasadetay"
+        options={{
+          href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="gunluksatisurundetay"
         options={{
           href: null,
         }}

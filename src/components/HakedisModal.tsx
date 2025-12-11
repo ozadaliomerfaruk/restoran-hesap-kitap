@@ -17,9 +17,15 @@ import {
   Calendar,
   Edit3,
   CheckCircle,
+  ChevronDown,
+  Briefcase,
+  Clock,
+  Award,
+  Percent,
+  MoreHorizontal,
 } from "lucide-react-native";
 import { useStore } from "../store/useStore";
-import { Personel } from "../types";
+import { Personel, PersonelIslemType } from "../types";
 
 interface HakedisModalProps {
   visible: boolean;
@@ -31,6 +37,66 @@ interface PersonelHakedis {
   amount: number;
   selected: boolean;
 }
+
+// Hakediş kategorileri
+const HAKEDIS_KATEGORILERI: {
+  key: PersonelIslemType;
+  label: string;
+  icon: any;
+  color: string;
+  bgColor: string;
+}[] = [
+  {
+    key: "maas",
+    label: "Maaş",
+    icon: Briefcase,
+    color: "#3b82f6",
+    bgColor: "#dbeafe",
+  },
+  {
+    key: "mesai",
+    label: "Mesai",
+    icon: Clock,
+    color: "#f59e0b",
+    bgColor: "#fef3c7",
+  },
+  {
+    key: "prim",
+    label: "Prim",
+    icon: Award,
+    color: "#10b981",
+    bgColor: "#dcfce7",
+  },
+  {
+    key: "komisyon",
+    label: "Komisyon",
+    icon: Percent,
+    color: "#8b5cf6",
+    bgColor: "#ede9fe",
+  },
+  {
+    key: "diger",
+    label: "Diğer",
+    icon: MoreHorizontal,
+    color: "#6b7280",
+    bgColor: "#f3f4f6",
+  },
+];
+
+const AYLAR = [
+  "Ocak",
+  "Şubat",
+  "Mart",
+  "Nisan",
+  "Mayıs",
+  "Haziran",
+  "Temmuz",
+  "Ağustos",
+  "Eylül",
+  "Ekim",
+  "Kasım",
+  "Aralık",
+];
 
 export default function HakedisModal({ visible, onClose }: HakedisModalProps) {
   const {
@@ -44,30 +110,38 @@ export default function HakedisModal({ visible, onClose }: HakedisModalProps) {
   const [loading, setLoading] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
-  const [hakedisDate, setHakedisDate] = useState(
-    new Date().toISOString().split("T")[0]
-  );
+
+  // Dönem seçimi
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+  const [showMonthPicker, setShowMonthPicker] = useState(false);
+  const [showYearPicker, setShowYearPicker] = useState(false);
+
+  // Kategori seçimi
+  const [selectedKategori, setSelectedKategori] =
+    useState<PersonelIslemType>("maas");
 
   useEffect(() => {
     if (visible) {
       fetchPersoneller();
-      // Mevcut ayı al
+      // Mevcut ayı ve yılı seç
       const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, "0");
-      setHakedisDate(`${year}-${month}-01`);
+      setSelectedMonth(now.getMonth());
+      setSelectedYear(now.getFullYear());
+      setSelectedKategori("maas");
     }
   }, [visible]);
 
   useEffect(() => {
     // Personeller yüklendiğinde hakediş listesini oluştur
+    // Maaş kategorisi için varsayılan maaşı kullan, diğerleri için 0
     const list = personeller.map((p) => ({
       personel: p,
-      amount: p.salary || 0,
-      selected: (p.salary || 0) > 0, // Maaşı olanları otomatik seç
+      amount: selectedKategori === "maas" ? p.salary || 0 : 0,
+      selected: selectedKategori === "maas" ? (p.salary || 0) > 0 : false,
     }));
     setHakedisler(list);
-  }, [personeller]);
+  }, [personeller, selectedKategori]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("tr-TR", {
@@ -77,23 +151,26 @@ export default function HakedisModal({ visible, onClose }: HakedisModalProps) {
     }).format(value);
   };
 
-  const getCurrentMonthName = () => {
-    const months = [
-      "Ocak",
-      "Şubat",
-      "Mart",
-      "Nisan",
-      "Mayıs",
-      "Haziran",
-      "Temmuz",
-      "Ağustos",
-      "Eylül",
-      "Ekim",
-      "Kasım",
-      "Aralık",
-    ];
-    const date = new Date(hakedisDate);
-    return `${months[date.getMonth()]} ${date.getFullYear()}`;
+  // Virgülü noktaya çeviren yardımcı fonksiyon
+  const parseAmount = (value: string): number => {
+    const normalized = value.replace(",", ".");
+    return parseFloat(normalized) || 0;
+  };
+
+  const getHakedisDate = () => {
+    const month = String(selectedMonth + 1).padStart(2, "0");
+    return `${selectedYear}-${month}-01`;
+  };
+
+  const getDonemText = () => {
+    return `${AYLAR[selectedMonth]} ${selectedYear}`;
+  };
+
+  const getKategoriLabel = () => {
+    return (
+      HAKEDIS_KATEGORILERI.find((k) => k.key === selectedKategori)?.label ||
+      "Maaş"
+    );
   };
 
   const toggleSelect = (id: string) => {
@@ -117,7 +194,7 @@ export default function HakedisModal({ visible, onClose }: HakedisModalProps) {
   };
 
   const saveEdit = (id: string) => {
-    const newAmount = parseFloat(editValue) || 0;
+    const newAmount = parseAmount(editValue);
     setHakedisler((prev) =>
       prev.map((h) => (h.personel.id === id ? { ...h, amount: newAmount } : h))
     );
@@ -135,17 +212,23 @@ export default function HakedisModal({ visible, onClose }: HakedisModalProps) {
   );
   const totalAmount = selectedHakedisler.reduce((sum, h) => sum + h.amount, 0);
 
+  // Yıl listesi (son 5 yıl)
+  const yearOptions = Array.from({ length: 5 }, (_, i) => selectedYear - 2 + i);
+
   const handleSubmit = async () => {
     if (selectedHakedisler.length === 0) {
       Alert.alert("Uyarı", "En az bir personel seçmelisiniz");
       return;
     }
 
+    const kategoriLabel = getKategoriLabel();
+    const donemText = getDonemText();
+
     Alert.alert(
       "Hakedişi Onayla",
       `${selectedHakedisler.length} personel için toplam ${formatCurrency(
         totalAmount
-      )} tutarında maaş hakedişi kaydedilecek.\n\nDevam etmek istiyor musunuz?`,
+      )} tutarında ${kategoriLabel.toLowerCase()} hakedişi kaydedilecek.\n\nDönem: ${donemText}\n\nDevam etmek istiyor musunuz?`,
       [
         { text: "İptal", style: "cancel" },
         {
@@ -158,10 +241,10 @@ export default function HakedisModal({ visible, onClose }: HakedisModalProps) {
             for (const h of selectedHakedisler) {
               const { error } = await addPersonelIslem({
                 personel_id: h.personel.id,
-                type: "maas",
+                type: selectedKategori,
                 amount: h.amount,
-                description: `${getCurrentMonthName()} maaş hakedişi`,
-                date: hakedisDate,
+                description: `${donemText} ${kategoriLabel.toLowerCase()} hakedişi`,
+                date: getHakedisDate(),
                 restaurant_id: "",
                 updated_at: new Date().toISOString(),
               });
@@ -180,7 +263,7 @@ export default function HakedisModal({ visible, onClose }: HakedisModalProps) {
             if (errorCount === 0) {
               Alert.alert(
                 "Başarılı",
-                `${successCount} personel için maaş hakedişi kaydedildi.`,
+                `${successCount} personel için ${kategoriLabel.toLowerCase()} hakedişi kaydedildi.`,
                 [{ text: "Tamam", onPress: onClose }]
               );
             } else {
@@ -207,15 +290,63 @@ export default function HakedisModal({ visible, onClose }: HakedisModalProps) {
           <TouchableOpacity onPress={onClose} style={styles.backButton}>
             <ArrowLeft size={24} color="#3b82f6" />
           </TouchableOpacity>
-          <Text style={styles.headerTitle}>Aylık Maaş Hakedişi</Text>
+          <Text style={styles.headerTitle}>Aylık Personel Hakediş</Text>
           <View style={{ width: 40 }} />
         </View>
 
-        {/* Ay Seçimi */}
-        <View style={styles.monthSection}>
+        {/* Dönem Seçimi */}
+        <View style={styles.donemSection}>
           <Calendar size={20} color="#3b82f6" />
-          <Text style={styles.monthLabel}>Hakediş Dönemi:</Text>
-          <Text style={styles.monthValue}>{getCurrentMonthName()}</Text>
+          <Text style={styles.donemLabel}>Dönem:</Text>
+          <TouchableOpacity
+            style={styles.donemBtn}
+            onPress={() => setShowMonthPicker(true)}
+          >
+            <Text style={styles.donemBtnText}>{AYLAR[selectedMonth]}</Text>
+            <ChevronDown size={16} color="#3b82f6" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.donemBtn}
+            onPress={() => setShowYearPicker(true)}
+          >
+            <Text style={styles.donemBtnText}>{selectedYear}</Text>
+            <ChevronDown size={16} color="#3b82f6" />
+          </TouchableOpacity>
+        </View>
+
+        {/* Kategori Seçimi */}
+        <View style={styles.kategoriSection}>
+          <Text style={styles.kategoriTitle}>Hakediş Türü</Text>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.kategoriScroll}
+          >
+            {HAKEDIS_KATEGORILERI.map((kat) => {
+              const Icon = kat.icon;
+              const isSelected = selectedKategori === kat.key;
+              return (
+                <TouchableOpacity
+                  key={kat.key}
+                  style={[
+                    styles.kategoriBtn,
+                    { backgroundColor: isSelected ? kat.color : kat.bgColor },
+                  ]}
+                  onPress={() => setSelectedKategori(kat.key)}
+                >
+                  <Icon size={18} color={isSelected ? "#fff" : kat.color} />
+                  <Text
+                    style={[
+                      styles.kategoriBtnText,
+                      { color: isSelected ? "#fff" : kat.color },
+                    ]}
+                  >
+                    {kat.label}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
         </View>
 
         {/* Özet Kart */}
@@ -355,10 +486,96 @@ export default function HakedisModal({ visible, onClose }: HakedisModalProps) {
             )}
           </TouchableOpacity>
           <Text style={styles.footerNote}>
-            Bu işlem seçili personeller için maaş gideri kaydı oluşturacaktır
+            Bu işlem seçili personeller için {getKategoriLabel().toLowerCase()}{" "}
+            kaydı oluşturacaktır
           </Text>
         </View>
       </View>
+
+      {/* Ay Seçim Modal */}
+      <Modal
+        visible={showMonthPicker}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowMonthPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.pickerOverlay}
+          activeOpacity={1}
+          onPress={() => setShowMonthPicker(false)}
+        >
+          <View style={styles.pickerContainer}>
+            <Text style={styles.pickerTitle}>Ay Seçin</Text>
+            <View style={styles.pickerGrid}>
+              {AYLAR.map((ay, index) => (
+                <TouchableOpacity
+                  key={ay}
+                  style={[
+                    styles.pickerItem,
+                    selectedMonth === index && styles.pickerItemActive,
+                  ]}
+                  onPress={() => {
+                    setSelectedMonth(index);
+                    setShowMonthPicker(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.pickerItemText,
+                      selectedMonth === index && styles.pickerItemTextActive,
+                    ]}
+                  >
+                    {ay}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Yıl Seçim Modal */}
+      <Modal
+        visible={showYearPicker}
+        animationType="fade"
+        transparent
+        onRequestClose={() => setShowYearPicker(false)}
+      >
+        <TouchableOpacity
+          style={styles.pickerOverlay}
+          activeOpacity={1}
+          onPress={() => setShowYearPicker(false)}
+        >
+          <View style={styles.pickerContainer}>
+            <Text style={styles.pickerTitle}>Yıl Seçin</Text>
+            <View style={styles.pickerGrid}>
+              {yearOptions.map((year) => (
+                <TouchableOpacity
+                  key={year}
+                  style={[
+                    styles.pickerItem,
+                    styles.pickerItemYear,
+                    selectedYear === year && styles.pickerItemActive,
+                  ]}
+                  onPress={() => {
+                    setSelectedYear(year);
+                    setShowYearPicker(false);
+                  }}
+                >
+                  <Text
+                    style={[
+                      styles.pickerItemText,
+                      selectedYear === year && styles.pickerItemTextActive,
+                    ]}
+                  >
+                    {year}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </TouchableOpacity>
+      </Modal>
     </Modal>
   );
 }
@@ -382,11 +599,11 @@ const styles = StyleSheet.create({
     padding: 4,
   },
   headerTitle: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
     color: "#111827",
   },
-  monthSection: {
+  donemSection: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
@@ -394,14 +611,53 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 8,
   },
-  monthLabel: {
-    fontSize: 19,
+  donemLabel: {
+    fontSize: 15,
     color: "#1e40af",
   },
-  monthValue: {
-    fontSize: 19,
-    fontWeight: "700",
-    color: "#1e40af",
+  donemBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    gap: 4,
+  },
+  donemBtnText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: "#3b82f6",
+  },
+  kategoriSection: {
+    backgroundColor: "#fff",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e5e7eb",
+  },
+  kategoriTitle: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6b7280",
+    marginBottom: 10,
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+  },
+  kategoriScroll: {
+    gap: 8,
+  },
+  kategoriBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 10,
+    gap: 6,
+  },
+  kategoriBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
   summaryCard: {
     backgroundColor: "#fff",
@@ -429,17 +685,17 @@ const styles = StyleSheet.create({
     backgroundColor: "#e5e7eb",
   },
   summaryLabel: {
-    fontSize: 19,
+    fontSize: 13,
     color: "#6b7280",
     marginBottom: 6,
   },
   summaryValue: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "700",
     color: "#111827",
   },
   summaryAmount: {
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: "700",
     color: "#10b981",
   },
@@ -464,7 +720,7 @@ const styles = StyleSheet.create({
     borderColor: "#3b82f6",
   },
   selectAllText: {
-    fontSize: 19,
+    fontSize: 15,
     fontWeight: "500",
     color: "#6b7280",
   },
@@ -478,7 +734,7 @@ const styles = StyleSheet.create({
     paddingVertical: 60,
   },
   emptyText: {
-    fontSize: 19,
+    fontSize: 15,
     color: "#9ca3af",
     marginTop: 12,
   },
@@ -506,7 +762,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
   },
   avatarText: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: "600",
     color: "#4f46e5",
   },
@@ -514,12 +770,12 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   personelName: {
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: "600",
     color: "#111827",
   },
   personelPosition: {
-    fontSize: 19,
+    fontSize: 14,
     color: "#6b7280",
     marginTop: 2,
   },
@@ -536,7 +792,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   amountText: {
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: "600",
     color: "#111827",
   },
@@ -558,12 +814,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
   },
   editCurrency: {
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: "600",
     color: "#6b7280",
   },
   editInput: {
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: "600",
     color: "#111827",
     paddingVertical: 8,
@@ -598,14 +854,63 @@ const styles = StyleSheet.create({
     backgroundColor: "#9ca3af",
   },
   submitText: {
-    fontSize: 19,
+    fontSize: 16,
     fontWeight: "700",
     color: "#fff",
   },
   footerNote: {
-    fontSize: 19,
+    fontSize: 13,
     color: "#9ca3af",
     textAlign: "center",
     marginTop: 10,
+  },
+  // Picker Modal
+  pickerOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pickerContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 20,
+    width: "85%",
+    maxWidth: 360,
+  },
+  pickerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#111827",
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  pickerGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "center",
+    gap: 8,
+  },
+  pickerItem: {
+    width: "30%",
+    paddingVertical: 12,
+    borderRadius: 10,
+    backgroundColor: "#f3f4f6",
+    alignItems: "center",
+  },
+  pickerItemYear: {
+    width: "45%",
+  },
+  pickerItemActive: {
+    backgroundColor: "#3b82f6",
+  },
+  pickerItemText: {
+    fontSize: 15,
+    fontWeight: "500",
+    color: "#374151",
+  },
+  pickerItemTextActive: {
+    color: "#fff",
+    fontWeight: "600",
   },
 });

@@ -12,6 +12,9 @@ import {
   Platform,
   UIManager,
   Modal,
+  Keyboard,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -1078,7 +1081,7 @@ export default function Dashboard() {
               >
                 <Banknote size={22} color="#8b5cf6" />
               </View>
-              <Text style={styles.quickActionText}>Maaş Hakedişi</Text>
+              <Text style={styles.quickActionText}>Personel Hakediş</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -1360,116 +1363,134 @@ export default function Dashboard() {
 
       {/* Hesap Ekleme Modal */}
       <Modal visible={showAddKasaModal} transparent animationType="fade">
-        <TouchableOpacity
-          style={styles.pickerOverlay}
-          activeOpacity={1}
-          onPress={() => setShowAddKasaModal(false)}
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          style={{ flex: 1 }}
         >
-          <View
-            style={styles.addKasaModal}
-            onStartShouldSetResponder={() => true}
-          >
-            <Text style={styles.addKasaTitle}>Yeni Hesap Ekle</Text>
-
-            <Text style={styles.addKasaLabel}>Hesap Adı</Text>
-            <TextInput
-              style={styles.addKasaInput}
-              value={newKasaName}
-              onChangeText={setNewKasaName}
-              placeholder="Örn: Ana Kasa, Ziraat Bankası"
-              placeholderTextColor="#9ca3af"
-            />
-
-            <Text style={styles.addKasaLabel}>Hesap Türü</Text>
-            <View style={styles.kasaTypeRow}>
-              {[
-                {
-                  type: "nakit",
-                  label: "Nakit",
-                  icon: Wallet,
-                  color: "#10b981",
-                },
-                {
-                  type: "banka",
-                  label: "Banka",
-                  icon: Building2,
-                  color: "#3b82f6",
-                },
-                {
-                  type: "kredi_karti",
-                  label: "Kredi K.",
-                  icon: CreditCard,
-                  color: "#f59e0b",
-                },
-                {
-                  type: "birikim",
-                  label: "Birikim",
-                  icon: PiggyBank,
-                  color: "#8b5cf6",
-                },
-              ].map((item) => {
-                const Icon = item.icon;
-                return (
-                  <TouchableOpacity
-                    key={item.type}
-                    style={[
-                      styles.kasaTypeBtn,
-                      newKasaType === item.type && {
-                        backgroundColor: item.color,
-                        borderColor: item.color,
-                      },
-                    ]}
-                    onPress={() => setNewKasaType(item.type as any)}
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <View style={styles.modalOverlay}>
+              <TouchableWithoutFeedback>
+                <View style={styles.addKasaModal}>
+                  <ScrollView
+                    showsVerticalScrollIndicator={false}
+                    bounces={false}
+                    keyboardShouldPersistTaps="handled"
                   >
-                    <Icon
-                      size={16}
-                      color={newKasaType === item.type ? "#fff" : item.color}
+                    <Text style={styles.addKasaTitle}>Yeni Hesap Ekle</Text>
+
+                    <Text style={styles.addKasaLabel}>Hesap Adı</Text>
+                    <TextInput
+                      style={styles.addKasaInput}
+                      value={newKasaName}
+                      onChangeText={setNewKasaName}
+                      placeholder="Örn: Ana Kasa, Ziraat Bankası"
+                      placeholderTextColor="#9ca3af"
                     />
-                    <Text
-                      style={[
-                        styles.kasaTypeBtnText,
-                        newKasaType === item.type && { color: "#fff" },
-                      ]}
-                    >
-                      {item.label}
+
+                    <Text style={styles.addKasaLabel}>Hesap Türü</Text>
+                    <View style={styles.kasaTypeRow}>
+                      {[
+                        {
+                          type: "nakit",
+                          label: "Nakit",
+                          icon: Wallet,
+                          color: "#10b981",
+                        },
+                        {
+                          type: "banka",
+                          label: "Banka",
+                          icon: Building2,
+                          color: "#3b82f6",
+                        },
+                        {
+                          type: "kredi_karti",
+                          label: "Kredi K.",
+                          icon: CreditCard,
+                          color: "#f59e0b",
+                        },
+                        {
+                          type: "birikim",
+                          label: "Birikim",
+                          icon: PiggyBank,
+                          color: "#8b5cf6",
+                        },
+                      ].map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <TouchableOpacity
+                            key={item.type}
+                            style={[
+                              styles.kasaTypeBtn,
+                              newKasaType === item.type && {
+                                backgroundColor: item.color,
+                                borderColor: item.color,
+                              },
+                            ]}
+                            onPress={() => setNewKasaType(item.type as any)}
+                          >
+                            <Icon
+                              size={16}
+                              color={
+                                newKasaType === item.type ? "#fff" : item.color
+                              }
+                            />
+                            <Text
+                              style={[
+                                styles.kasaTypeBtnText,
+                                newKasaType === item.type && { color: "#fff" },
+                              ]}
+                            >
+                              {item.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    <Text style={styles.addKasaLabel}>
+                      Açılış Bakiyesi (Opsiyonel)
                     </Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
+                    <View style={styles.addKasaAmountRow}>
+                      <Text style={styles.addKasaCurrency}>₺</Text>
+                      <TextInput
+                        style={styles.addKasaAmountInput}
+                        value={newKasaBalance}
+                        onChangeText={setNewKasaBalance}
+                        placeholder="0"
+                        placeholderTextColor="#9ca3af"
+                        keyboardType="numeric"
+                      />
+                    </View>
 
-            <Text style={styles.addKasaLabel}>Açılış Bakiyesi (Opsiyonel)</Text>
-            <View style={styles.addKasaAmountRow}>
-              <Text style={styles.addKasaCurrency}>₺</Text>
-              <TextInput
-                style={styles.addKasaAmountInput}
-                value={newKasaBalance}
-                onChangeText={setNewKasaBalance}
-                placeholder="0"
-                placeholderTextColor="#9ca3af"
-                keyboardType="numeric"
-              />
+                    <View style={styles.addKasaBtnRow}>
+                      <TouchableOpacity
+                        style={styles.addKasaCancelBtn}
+                        onPress={() => {
+                          Keyboard.dismiss();
+                          setShowAddKasaModal(false);
+                        }}
+                      >
+                        <Text style={styles.addKasaCancelBtnText}>İptal</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.addKasaSaveBtn,
+                          addingKasa && { opacity: 0.6 },
+                        ]}
+                        onPress={handleAddKasa}
+                        disabled={addingKasa}
+                      >
+                        <Text style={styles.addKasaSaveBtnText}>
+                          {addingKasa ? "..." : "Ekle"}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </ScrollView>
+                </View>
+              </TouchableWithoutFeedback>
             </View>
-
-            <View style={styles.addKasaBtnRow}>
-              <TouchableOpacity
-                style={styles.addKasaCancelBtn}
-                onPress={() => setShowAddKasaModal(false)}
-              >
-                <Text style={styles.addKasaCancelBtnText}>İptal</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.addKasaSaveBtn, addingKasa && { opacity: 0.6 }]}
-                onPress={handleAddKasa}
-                disabled={addingKasa}
-              >
-                <Text style={styles.addKasaSaveBtnText}>
-                  {addingKasa ? "..." : "Ekle"}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </TouchableOpacity>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
       </Modal>
 
       <GunlukCiroModal
@@ -1829,10 +1850,18 @@ const styles = StyleSheet.create({
   addKasaBtnText: { fontSize: 14, color: "#3b82f6", fontWeight: "500" },
 
   // Hesap Ekleme Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
   addKasaModal: {
     backgroundColor: "#fff",
     borderRadius: 16,
     width: "100%",
+    maxHeight: "80%",
     padding: 20,
   },
   addKasaTitle: {

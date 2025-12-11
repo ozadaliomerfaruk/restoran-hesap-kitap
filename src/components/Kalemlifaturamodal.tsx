@@ -208,10 +208,11 @@ export default function KalemliFaturaModal({ visible, onClose, cari }: Props) {
 
     setAddingUrun(true);
     const { error } = await addUrun({
-      restaurant_id: profile?.restaurant_id || "",
       name: newUrunName.trim(),
       unit: newUrunUnit || "adet",
-      default_price: newUrunPrice ? parseFloat(newUrunPrice) : undefined,
+      default_price: newUrunPrice
+        ? parseFloat(newUrunPrice.replace(",", "."))
+        : undefined,
       kdv_rate: newUrunKdvRate ? parseInt(newUrunKdvRate) : 10,
       kategori_id: newUrunKategoriId || undefined,
       is_active: true,
@@ -267,15 +268,21 @@ export default function KalemliFaturaModal({ visible, onClose, cari }: Props) {
     return grouped;
   };
 
+  // Virgülü noktaya çeviren yardımcı fonksiyon (Türkçe klavye desteği)
+  const parseAmount = (value: string): number => {
+    const normalized = value.replace(",", ".");
+    return parseFloat(normalized) || 0;
+  };
+
   const calculateKalemTotal = (kalem: Kalem) => {
-    const qty = parseFloat(kalem.quantity) || 0;
-    const price = parseFloat(kalem.unit_price) || 0;
+    const qty = parseAmount(kalem.quantity);
+    const price = parseAmount(kalem.unit_price);
     return qty * price;
   };
 
   const calculateKalemKdv = (kalem: Kalem) => {
     const total = calculateKalemTotal(kalem);
-    const kdvRate = parseFloat(kalem.kdv_rate) || 0;
+    const kdvRate = parseAmount(kalem.kdv_rate);
     return total * (kdvRate / 100);
   };
 
@@ -342,11 +349,11 @@ export default function KalemliFaturaModal({ visible, onClose, cari }: Props) {
         islem_id: islem.id,
         urun_id: k.urun_id,
         urun_adi: k.urun_adi,
-        quantity: parseFloat(k.quantity) || 1,
+        quantity: parseAmount(k.quantity) || 1,
         unit: k.unit,
-        unit_price: parseFloat(k.unit_price) || 0,
+        unit_price: parseAmount(k.unit_price) || 0,
         total_price: calculateKalemTotal(k),
-        kdv_rate: parseFloat(k.kdv_rate) || 0,
+        kdv_rate: parseAmount(k.kdv_rate) || 0,
         kategori_id: k.kategori_id,
       }));
 
@@ -1079,7 +1086,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 16,
-    paddingTop: 30,
+    paddingTop: 20,
     backgroundColor: "#fff",
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
@@ -1338,7 +1345,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: "#e5e7eb",
     marginTop: 8,
-    paddingTop: 20,
+    paddingTop: 12,
   },
   grandTotalLabel: { fontSize: 16, fontWeight: "700", color: "#111827" },
   grandTotalValue: { fontSize: 20, fontWeight: "700", color: "#10b981" },
@@ -1370,7 +1377,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 16,
     paddingVertical: 16,
-    paddingTop: 30,
+    paddingTop: 20,
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },
@@ -1543,7 +1550,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
-    paddingTop: 30,
+    paddingTop: 20,
     borderBottomWidth: 1,
     borderBottomColor: "#e5e7eb",
   },

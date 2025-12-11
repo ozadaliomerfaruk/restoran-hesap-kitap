@@ -19,6 +19,7 @@ import {
   Urun,
   Subscription,
   SatisKaydi,
+  UrunKategorisi,
 } from "../types";
 
 interface AppState {
@@ -184,13 +185,23 @@ interface AppState {
   loadingMenuItems: boolean;
   fetchMenuItems: () => Promise<void>;
   addMenuItem: (
-    item: Omit<MenuItem, "id" | "created_at" | "updated_at">
+    item: Omit<
+      MenuItem,
+      "id" | "restaurant_id" | "created_at" | "updated_at"
+    > & { category?: string }
   ) => Promise<{ error: any }>;
   updateMenuItem: (
     id: string,
     updates: Partial<MenuItem>
   ) => Promise<{ error: any }>;
   deleteMenuItem: (id: string) => Promise<{ error: any }>;
+
+  // Ürün Kategorileri
+  urunKategorileri: UrunKategorisi[];
+  loadingUrunKategorileri: boolean;
+  fetchUrunKategorileri: () => Promise<void>;
+  addUrunKategorisi: (name: string) => Promise<{ error: any }>;
+  deleteUrunKategorisi: (id: string) => Promise<{ error: any }>;
 
   // Satış Kayıtları (Ürün Bazlı Takip - Gelir/Gideri Etkilemez)
   satisKayitlari: SatisKaydi[];
@@ -200,6 +211,7 @@ interface AppState {
     kayit: Omit<
       SatisKaydi,
       | "id"
+      | "restaurant_id"
       | "created_at"
       | "updated_at"
       | "created_by"
@@ -218,7 +230,7 @@ interface AppState {
   loadingUrunler: boolean;
   fetchUrunler: () => Promise<void>;
   addUrun: (
-    urun: Omit<Urun, "id" | "created_at" | "updated_at">
+    urun: Omit<Urun, "id" | "restaurant_id" | "created_at" | "updated_at">
   ) => Promise<{ error: any }>;
   updateUrun: (id: string, updates: Partial<Urun>) => Promise<{ error: any }>;
 
@@ -441,7 +453,7 @@ export const useStore = create<AppState>((set, get) => ({
       }
 
       // Manually join data
-      const islemlerWithJoins = (data || []).map((islem) => ({
+      const islemlerWithJoins = (data || []).map((islem: Islem) => ({
         ...islem,
         kasa: kasalar.find((k) => k.id === islem.kasa_id),
         kasa_hedef: kasalar.find((k) => k.id === islem.kasa_hedef_id),
@@ -723,7 +735,7 @@ export const useStore = create<AppState>((set, get) => ({
         .order("date", { ascending: false })
         .limit(100);
 
-      const islemlerWithJoins = (data || []).map((islem) => ({
+      const islemlerWithJoins = (data || []).map((islem: PersonelIslem) => ({
         ...islem,
         personel: personeller.find((p) => p.id === islem.personel_id),
         kasa: kasalar.find((k) => k.id === islem.kasa_id),
@@ -823,7 +835,7 @@ export const useStore = create<AppState>((set, get) => ({
         .order("start_date", { ascending: false })
         .limit(100);
 
-      const izinlerWithJoins = (data || []).map((izin) => ({
+      const izinlerWithJoins = (data || []).map((izin: Izin) => ({
         ...izin,
         personel: personeller.find((p) => p.id === izin.personel_id),
       }));
@@ -881,7 +893,7 @@ export const useStore = create<AppState>((set, get) => ({
         .eq("is_active", true)
         .order("next_date", { ascending: true });
 
-      const odemelerWithJoins = (data || []).map((odeme) => ({
+      const odemelerWithJoins = (data || []).map((odeme: TekrarlayanOdeme) => ({
         ...odeme,
         kasa: kasalar.find((k) => k.id === odeme.kasa_id),
         cari: cariler.find((c) => c.id === odeme.cari_id),
@@ -949,7 +961,7 @@ export const useStore = create<AppState>((set, get) => ({
         .eq("restaurant_id", profile.restaurant_id)
         .order("due_date", { ascending: true });
 
-      const cekSenetlerWithJoins = (data || []).map((cs) => ({
+      const cekSenetlerWithJoins = (data || []).map((cs: CekSenet) => ({
         ...cs,
         cari: cariler.find((c) => c.id === cs.cari_id),
         kasa: kasalar.find((k) => k.id === cs.kasa_id),
@@ -1063,7 +1075,7 @@ export const useStore = create<AppState>((set, get) => ({
 
       // Her taksit için ödemeleri çek
       const taksitlerWithJoins = await Promise.all(
-        (taksitData || []).map(async (taksit) => {
+        (taksitData || []).map(async (taksit: Taksit) => {
           const { data: odemeler } = await supabase
             .from("taksit_odemeleri")
             .select("*")
@@ -1414,6 +1426,58 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   // ==========================================
+  // ÜRÜN KATEGORİLERİ
+  // ==========================================
+  urunKategorileri: [],
+  loadingUrunKategorileri: false,
+  fetchUrunKategorileri: async () => {
+    set({ loadingUrunKategorileri: true });
+    const { profile } = get();
+    if (profile?.restaurant_id) {
+      const { data } = await supabase
+        .from("urun_kategorileri")
+        .select("*")
+        .eq("restaurant_id", profile.restaurant_id)
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true });
+
+      set({ urunKategorileri: data || [] });
+    }
+    set({ loadingUrunKategorileri: false });
+  },
+  addUrunKategorisi: async (name) => {
+    const { profile, urunKategorileri } = get();
+    if (!profile?.restaurant_id) return { error: "No restaurant" };
+
+    const maxOrder = urunKategorileri.reduce(
+      (max, k) => Math.max(max, k.sort_order || 0),
+      0
+    );
+
+    const { error } = await supabase.from("urun_kategorileri").insert({
+      restaurant_id: profile.restaurant_id,
+      name: name.trim(),
+      sort_order: maxOrder + 1,
+    });
+
+    if (!error) {
+      get().fetchUrunKategorileri();
+    }
+    return { error };
+  },
+  deleteUrunKategorisi: async (id) => {
+    const { error } = await supabase
+      .from("urun_kategorileri")
+      .delete()
+      .eq("id", id);
+
+    if (!error) {
+      get().fetchUrunKategorileri();
+    }
+    return { error };
+  },
+
+  // ==========================================
   // SATIŞ KAYITLARI (Ürün Bazlı Takip)
   // Bu modül gelir/gideri ETKİLEMEZ!
   // ==========================================
@@ -1432,7 +1496,7 @@ export const useStore = create<AppState>((set, get) => ({
         .limit(limit);
 
       // Join menu_item
-      const kayitlarWithJoins = (data || []).map((kayit) => ({
+      const kayitlarWithJoins = (data || []).map((kayit: SatisKaydi) => ({
         ...kayit,
         menu_item: menuItems.find((m) => m.id === kayit.menu_item_id),
       }));
@@ -1498,7 +1562,7 @@ export const useStore = create<AppState>((set, get) => ({
         .eq("restaurant_id", profile.restaurant_id)
         .order("name", { ascending: true });
 
-      const urunlerWithJoins = (data || []).map((urun) => ({
+      const urunlerWithJoins = (data || []).map((urun: Urun) => ({
         ...urun,
         kategori: kategoriler.find((k) => k.id === urun.kategori_id),
       }));

@@ -181,6 +181,21 @@ export default function PersonelScreen() {
     });
   };
 
+  // Tarih ayracı için uzun format (10 Aralık 2025)
+  const formatDateHeader = (dateStr: string) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("tr-TR", {
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    });
+  };
+
+  // Tarih karşılaştırması için sadece tarih kısmı (2025-12-10)
+  const getDateKey = (dateStr: string) => {
+    return dateStr.split("T")[0];
+  };
+
   // Nakit ve banka kasaları
   const nakitBankaKasalar = kasalar.filter(
     (k) => k.type === "nakit" || k.type === "banka"
@@ -627,13 +642,13 @@ export default function PersonelScreen() {
     );
   };
 
-  // Toplam borç durumu
+  // Toplam borç durumu - sadece hesaba dahil olanlar
   const toplamBorcumuz = personeller
-    .filter((p) => (p.balance || 0) > 0)
+    .filter((p) => (p.balance || 0) > 0 && p.include_in_reports)
     .reduce((sum, p) => sum + (p.balance || 0), 0);
 
   const toplamAlacagimiz = personeller
-    .filter((p) => (p.balance || 0) < 0)
+    .filter((p) => (p.balance || 0) < 0 && p.include_in_reports)
     .reduce((sum, p) => sum + Math.abs(p.balance || 0), 0);
 
   const getBalanceInfo = (personel: Personel) => {
@@ -700,9 +715,15 @@ export default function PersonelScreen() {
     const isExpanded = expandedPersonelId === item.id;
     const balanceInfo = getBalanceInfo(item);
     const izinGunleri = getPersonelIzinGunleri(item.id);
+    const isExcluded = !item.include_in_reports;
 
     return (
-      <View style={styles.cardContainer}>
+      <View
+        style={[
+          styles.cardContainer,
+          isExcluded && styles.cardContainerExcluded,
+        ]}
+      >
         {/* Header - tıklanabilir */}
         <TouchableOpacity
           style={styles.cardHeader}
@@ -710,16 +731,40 @@ export default function PersonelScreen() {
           activeOpacity={0.7}
         >
           <View style={styles.personelLeft}>
-            <View style={styles.avatar}>
-              <Text style={styles.avatarText}>
+            <View style={[styles.avatar, isExcluded && styles.avatarExcluded]}>
+              <Text
+                style={[
+                  styles.avatarText,
+                  isExcluded && styles.avatarTextExcluded,
+                ]}
+              >
                 {item.name.charAt(0).toUpperCase()}
               </Text>
             </View>
             <View style={styles.personelInfo}>
-              <Text style={styles.personelName}>{item.name}</Text>
+              <View style={styles.personelNameRow}>
+                <Text
+                  style={[
+                    styles.personelName,
+                    isExcluded && styles.personelNameExcluded,
+                  ]}
+                >
+                  {item.name}
+                </Text>
+                {isExcluded && (
+                  <EyeOff size={14} color="#9ca3af" style={{ marginLeft: 6 }} />
+                )}
+              </View>
               <View style={styles.personelSubInfo}>
                 {item.position ? (
-                  <Text style={styles.personelPosition}>{item.position}</Text>
+                  <Text
+                    style={[
+                      styles.personelPosition,
+                      isExcluded && styles.personelPositionExcluded,
+                    ]}
+                  >
+                    {item.position}
+                  </Text>
                 ) : null}
                 {izinGunleri !== 0 ? (
                   <View
@@ -753,10 +798,17 @@ export default function PersonelScreen() {
             <View
               style={[
                 styles.balanceBadge,
-                { backgroundColor: balanceInfo.bgColor },
+                {
+                  backgroundColor: isExcluded ? "#f3f4f6" : balanceInfo.bgColor,
+                },
               ]}
             >
-              <Text style={[styles.balanceText, { color: balanceInfo.color }]}>
+              <Text
+                style={[
+                  styles.balanceText,
+                  { color: isExcluded ? "#9ca3af" : balanceInfo.color },
+                ]}
+              >
                 {formatCurrency(Math.abs(item.balance || 0))}
               </Text>
             </View>
@@ -1206,85 +1258,105 @@ export default function PersonelScreen() {
               {/* İşlem geçmişi */}
               <Text style={styles.sectionTitle}>İşlem Geçmişi</Text>
 
-              {getPersonelIslemler(detailPersonel.id).length > 0 ? (
-                getPersonelIslemler(detailPersonel.id).map((islem) => {
+              {(() => {
+                const islemler = getPersonelIslemler(detailPersonel.id);
+                if (islemler.length === 0) {
+                  return (
+                    <View style={styles.noIslemContainer}>
+                      <Text style={styles.noIslemText}>Henüz işlem yok</Text>
+                    </View>
+                  );
+                }
+                return islemler.map((islem, index) => {
                   const typeInfo = getIslemTypeInfo(islem.type);
                   const Icon = typeInfo.icon;
                   const kasaName = kasalar.find(
                     (k) => k.id === islem.kasa_id
                   )?.name;
 
+                  // Önceki işlemin tarihiyle karşılaştır
+                  const prevIslem = index > 0 ? islemler[index - 1] : null;
+                  const showDateHeader =
+                    !prevIslem ||
+                    getDateKey(prevIslem.date) !== getDateKey(islem.date);
+
                   return (
-                    <View key={islem.id} style={styles.islemItem}>
-                      <View style={styles.islemLeft}>
-                        <View
-                          style={[
-                            styles.islemIcon,
-                            { backgroundColor: `${typeInfo.color}20` },
-                          ]}
-                        >
-                          <Icon size={16} color={typeInfo.color} />
+                    <View key={islem.id}>
+                      {/* Tarih Ayracı */}
+                      {showDateHeader && (
+                        <View style={styles.dateSeparator}>
+                          <View style={styles.dateSeparatorLine} />
+                          <Text style={styles.dateSeparatorText}>
+                            {formatDateHeader(islem.date)}
+                          </Text>
+                          <View style={styles.dateSeparatorLine} />
                         </View>
-                        <View style={styles.islemInfo}>
-                          <View style={styles.islemHeader}>
-                            <Text
-                              style={[
-                                styles.islemType,
-                                { color: typeInfo.color },
-                              ]}
-                            >
-                              {typeInfo.label}
-                            </Text>
-                            <Text style={styles.islemDate}>
-                              {formatDate(islem.date)}
-                            </Text>
+                      )}
+
+                      <View style={styles.islemItem}>
+                        <View style={styles.islemLeft}>
+                          <View
+                            style={[
+                              styles.islemIcon,
+                              { backgroundColor: `${typeInfo.color}20` },
+                            ]}
+                          >
+                            <Icon size={16} color={typeInfo.color} />
                           </View>
-                          {islem.description ? (
-                            <Text style={styles.islemDesc} numberOfLines={1}>
-                              {islem.description}
-                            </Text>
-                          ) : null}
-                          {kasaName ? (
-                            <Text style={styles.islemKasa}>{kasaName}</Text>
-                          ) : null}
+                          <View style={styles.islemInfo}>
+                            <View style={styles.islemHeader}>
+                              <Text
+                                style={[
+                                  styles.islemType,
+                                  { color: typeInfo.color },
+                                ]}
+                              >
+                                {typeInfo.label}
+                              </Text>
+                            </View>
+                            {islem.description ? (
+                              <Text style={styles.islemDesc} numberOfLines={1}>
+                                {islem.description}
+                              </Text>
+                            ) : null}
+                            {kasaName ? (
+                              <Text style={styles.islemKasa}>{kasaName}</Text>
+                            ) : null}
+                          </View>
                         </View>
-                      </View>
-                      <View style={styles.islemRight}>
-                        <Text
-                          style={[
-                            styles.islemAmount,
-                            { color: typeInfo.color },
-                          ]}
-                        >
-                          {[
-                            "maas",
-                            "mesai",
-                            "prim",
-                            "avans",
-                            "diger",
-                            "tazminat",
-                            "komisyon",
-                            "kesinti",
-                          ].includes(islem.type)
-                            ? "+"
-                            : "-"}
-                          {formatCurrency(islem.amount)}
-                        </Text>
-                        <TouchableOpacity
-                          style={styles.deleteBtn}
-                          onPress={() => handleDeleteIslem(islem)}
-                        >
-                          <Trash2 size={16} color="#ef4444" />
-                        </TouchableOpacity>
+                        <View style={styles.islemRight}>
+                          <Text
+                            style={[
+                              styles.islemAmount,
+                              { color: typeInfo.color },
+                            ]}
+                          >
+                            {[
+                              "maas",
+                              "mesai",
+                              "prim",
+                              "avans",
+                              "diger",
+                              "tazminat",
+                              "komisyon",
+                              "kesinti",
+                            ].includes(islem.type)
+                              ? "+"
+                              : "-"}
+                            {formatCurrency(islem.amount)}
+                          </Text>
+                          <TouchableOpacity
+                            style={styles.deleteBtn}
+                            onPress={() => handleDeleteIslem(islem)}
+                          >
+                            <Trash2 size={16} color="#ef4444" />
+                          </TouchableOpacity>
+                        </View>
                       </View>
                     </View>
                   );
-                })
-              ) : (
-                <View style={styles.noIslemContainer}>
-                  <Text style={styles.noIslemText}>Henüz işlem yok</Text>
-                </View>
-              )}
+                });
+              })()}
             </ScrollView>
           ) : null}
 
@@ -1628,10 +1700,12 @@ export default function PersonelScreen() {
                       value={izinDays}
                       onChangeText={(text) => {
                         const num = text.replace(/[^0-9]/g, "");
-                        setIzinDays(num || "1");
+                        setIzinDays(num);
                       }}
                       keyboardType="number-pad"
                       textAlign="center"
+                      placeholder="1"
+                      placeholderTextColor="#9ca3af"
                     />
                     <Text style={styles.dayInputLabel}>gün</Text>
                   </View>
@@ -1763,6 +1837,10 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: "hidden",
   },
+  cardContainerExcluded: {
+    opacity: 0.7,
+    backgroundColor: "#f9fafb",
+  },
   cardHeader: {
     flexDirection: "row",
     alignItems: "center",
@@ -1782,24 +1860,40 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
+  avatarExcluded: {
+    backgroundColor: "#f3f4f6",
+  },
   avatarText: {
     fontSize: 20,
     fontWeight: "600",
     color: "#4f46e5",
   },
+  avatarTextExcluded: {
+    color: "#9ca3af",
+  },
   personelInfo: {
     marginLeft: 14,
     flex: 1,
+  },
+  personelNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
   },
   personelName: {
     fontSize: 16,
     fontWeight: "600",
     color: "#111827",
   },
+  personelNameExcluded: {
+    color: "#9ca3af",
+  },
   personelPosition: {
     fontSize: 13,
     color: "#6b7280",
     marginTop: 2,
+  },
+  personelPositionExcluded: {
+    color: "#9ca3af",
   },
   personelSubInfo: {
     flexDirection: "row",
@@ -2136,6 +2230,22 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     color: "#111827",
     marginBottom: 12,
+  },
+  dateSeparator: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginVertical: 12,
+    gap: 10,
+  },
+  dateSeparatorLine: {
+    flex: 1,
+    height: 1,
+    backgroundColor: "#e5e7eb",
+  },
+  dateSeparatorText: {
+    fontSize: 13,
+    fontWeight: "600",
+    color: "#6b7280",
   },
   islemItem: {
     flexDirection: "row",
