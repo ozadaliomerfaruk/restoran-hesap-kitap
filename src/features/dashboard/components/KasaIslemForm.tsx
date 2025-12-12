@@ -91,7 +91,7 @@ export function KasaIslemForm({
         onPress={() => setShowDatePicker(true)}
       >
         <Calendar size={16} color="#6b7280" />
-        <Text style={styles.dateText}>{formatDateShort(date)}</Text>
+        <Text style={styles.dateText}>{formatDate(date, "short")}</Text>
         <ChevronDown size={16} color="#6b7280" />
       </TouchableOpacity>
 
