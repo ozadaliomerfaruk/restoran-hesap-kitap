@@ -1,0 +1,1 @@
+export { useTekrarlayanData } from "./useTekrarlayanData";

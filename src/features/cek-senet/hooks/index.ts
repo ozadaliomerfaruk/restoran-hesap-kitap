@@ -1,0 +1,1 @@
+export { useCekSenetData } from "./useCekSenetData";

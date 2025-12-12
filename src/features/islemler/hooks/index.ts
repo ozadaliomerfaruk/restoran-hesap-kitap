@@ -1,0 +1,1 @@
+export { useIslemlerData } from "./useIslemlerData";

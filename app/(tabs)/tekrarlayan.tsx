@@ -1,156 +1,88 @@
-import { useState, useEffect } from "react";
+// Tekrarlayan Ödemeler Screen - Refactored & Optimized
+
+import { useState, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
-  TouchableOpacity,
   RefreshControl,
+  TouchableOpacity,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Plus, RefreshCw, Calendar, AlertCircle } from "lucide-react-native";
-import { useStore } from "../../src/store/useStore";
-import AddTekrarlayanOdemeModal from "../../src/components/AddTekrarlayanOdemeModal";
-import { TekrarlayanOdeme } from "../../src/types";
+import { Plus, RefreshCw } from "lucide-react-native";
 
-const periodLabels: Record<string, string> = {
-  gunluk: "Günlük",
-  haftalik: "Haftalık",
-  aylik: "Aylık",
-  "2aylik": "2 Ayda Bir",
-  "3aylik": "3 Ayda Bir",
-  "6aylik": "6 Ayda Bir",
-  yillik: "Yıllık",
+import AddTekrarlayanOdemeModal from "../../src/components/AddTekrarlayanOdemeModal";
+import {
+  OdemeCard,
+  OdemeSummary,
+  useTekrarlayanData,
+} from "../../src/features/tekrarlayan";
+import { TekrarlayanOdeme } from "../../src/types";
+import { EmptyState } from "../../src/shared/components";
+
+// Constants
+const ITEM_HEIGHT = 88;
+const COLORS = {
+  gray: { 400: "#9ca3af" },
+  purple: "#8b5cf6",
 };
 
+// Memoized keyExtractor
+const keyExtractor = (item: TekrarlayanOdeme) => item.id;
+
 export default function TekrarlayanScreen() {
-  const {
-    tekrarlayanOdemeler,
-    loadingTekrarlayanOdemeler,
-    fetchTekrarlayanOdemeler,
-    fetchProfile,
-    profile,
-    fetchKasalar,
-    fetchCariler,
-    fetchKategoriler,
-  } = useStore();
   const [showAddModal, setShowAddModal] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
 
-  useEffect(() => {
-    const loadData = async () => {
-      await fetchProfile();
-    };
-    loadData();
-  }, []);
+  const { tekrarlayanOdemeler, totalMonthly, overdueCount, loading, refresh } =
+    useTekrarlayanData();
 
-  useEffect(() => {
-    if (profile?.restaurant_id) {
-      fetchKasalar();
-      fetchCariler();
-      fetchKategoriler();
-      fetchTekrarlayanOdemeler();
-    }
-  }, [profile?.restaurant_id]);
-
-  const onRefresh = async () => {
+  // Memoized refresh handler with error handling
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchTekrarlayanOdemeler();
-    setRefreshing(false);
-  };
+    try {
+      await refresh();
+    } catch (error) {
+      Alert.alert("Hata", "Veriler yüklenirken bir hata oluştu");
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refresh]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("tr-TR", {
-      style: "currency",
-      currency: "TRY",
-    }).format(amount);
-  };
+  // Memoized renderItem
+  const renderItem = useCallback(
+    ({ item }: { item: TekrarlayanOdeme }) => <OdemeCard item={item} />,
+    []
+  );
 
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("tr-TR", {
-      day: "numeric",
-      month: "short",
-    });
-  };
+  // Memoized getItemLayout
+  const getItemLayout = useCallback(
+    (_: any, index: number) => ({
+      length: ITEM_HEIGHT,
+      offset: ITEM_HEIGHT * index,
+      index,
+    }),
+    []
+  );
 
-  const isOverdue = (dateStr: string) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const dueDate = new Date(dateStr);
-    return dueDate < today;
-  };
+  // Memoized modal handlers
+  const openAddModal = useCallback(() => setShowAddModal(true), []);
+  const closeAddModal = useCallback(() => setShowAddModal(false), []);
 
-  const isDueSoon = (dateStr: string) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const dueDate = new Date(dateStr);
-    const threeDaysLater = new Date(today);
-    threeDaysLater.setDate(threeDaysLater.getDate() + 3);
-    return dueDate <= threeDaysLater && dueDate >= today;
-  };
-
-  const totalMonthly = tekrarlayanOdemeler
-    .filter((o) => o.period === "aylik")
-    .reduce((sum, o) => sum + o.amount, 0);
-
-  const overdueCount = tekrarlayanOdemeler.filter((o) =>
-    isOverdue(o.next_date)
-  ).length;
-
-  const renderOdemeItem = ({ item }: { item: TekrarlayanOdeme }) => {
-    const overdue = isOverdue(item.next_date);
-    const dueSoon = isDueSoon(item.next_date);
-
+  // Loading state
+  if (loading && tekrarlayanOdemeler.length === 0) {
     return (
-      <TouchableOpacity
-        style={[
-          styles.odemeCard,
-          overdue && styles.odemeCardOverdue,
-          dueSoon && !overdue && styles.odemeCardDueSoon,
-        ]}
-      >
-        <View style={styles.odemeLeft}>
-          <View
-            style={[
-              styles.odemeIcon,
-              overdue && styles.odemeIconOverdue,
-              dueSoon && !overdue && styles.odemeIconDueSoon,
-            ]}
-          >
-            {overdue ? (
-              <AlertCircle size={24} color="#ef4444" />
-            ) : (
-              <RefreshCw size={24} color={dueSoon ? "#f59e0b" : "#8b5cf6"} />
-            )}
-          </View>
-          <View style={styles.odemeInfo}>
-            <Text style={styles.odemeName}>{item.title}</Text>
-            <View style={styles.odemeMeta}>
-              <Calendar size={12} color="#6b7280" />
-              <Text
-                style={[styles.odemeDate, overdue && styles.odemeDateOverdue]}
-              >
-                {overdue ? "Gecikti: " : ""}
-                {formatDate(item.next_date)}
-              </Text>
-              <Text style={styles.odemeFrequency}>
-                • {periodLabels[item.period] || item.period}
-              </Text>
-            </View>
-            {item.cari && (
-              <Text style={styles.odemeCari}>{item.cari.name}</Text>
-            )}
-          </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={COLORS.purple} />
+          <Text style={styles.loadingText}>Yükleniyor...</Text>
         </View>
-        <Text
-          style={[styles.odemeAmount, overdue && styles.odemeAmountOverdue]}
-        >
-          {formatCurrency(item.amount)}
-        </Text>
-      </TouchableOpacity>
+      </SafeAreaView>
     );
-  };
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -159,76 +91,64 @@ export default function TekrarlayanScreen() {
         <Text style={styles.title}>Tekrarlayan Ödemeler</Text>
         <TouchableOpacity
           style={styles.addButton}
-          onPress={() => setShowAddModal(true)}
+          onPress={openAddModal}
+          accessibilityLabel="Yeni tekrarlayan ödeme ekle"
+          accessibilityRole="button"
         >
           <Plus size={24} color="#fff" />
         </TouchableOpacity>
       </View>
 
-      {/* Özet Kart */}
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryItem}>
-          <RefreshCw size={20} color="#8b5cf6" />
-          <Text style={styles.summaryValue}>{tekrarlayanOdemeler.length}</Text>
-          <Text style={styles.summaryLabel}>Aktif Ödeme</Text>
-        </View>
-        <View style={styles.summaryDivider} />
-        <View style={styles.summaryItem}>
-          <Calendar size={20} color="#10b981" />
-          <Text style={styles.summaryValue}>
-            {formatCurrency(totalMonthly)}
-          </Text>
-          <Text style={styles.summaryLabel}>Aylık Toplam</Text>
-        </View>
-        {overdueCount > 0 && (
-          <>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryItem}>
-              <AlertCircle size={20} color="#ef4444" />
-              <Text style={[styles.summaryValue, { color: "#ef4444" }]}>
-                {overdueCount}
-              </Text>
-              <Text style={styles.summaryLabel}>Gecikmiş</Text>
-            </View>
-          </>
-        )}
-      </View>
+      {/* Summary */}
+      <OdemeSummary
+        activeCount={tekrarlayanOdemeler.length}
+        totalMonthly={totalMonthly}
+        overdueCount={overdueCount}
+      />
 
-      {/* Liste veya Boş Durum */}
+      {/* List or Empty */}
       {tekrarlayanOdemeler.length > 0 ? (
         <FlatList
           data={tekrarlayanOdemeler}
-          renderItem={renderOdemeItem}
-          keyExtractor={(item) => item.id}
+          renderItem={renderItem}
+          keyExtractor={keyExtractor}
+          getItemLayout={getItemLayout}
           contentContainerStyle={styles.listContent}
+          removeClippedSubviews={true}
+          maxToRenderPerBatch={10}
+          windowSize={5}
+          initialNumToRender={10}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              colors={[COLORS.purple]}
+              tintColor={COLORS.purple}
+            />
           }
         />
       ) : (
-        <View style={styles.emptyContainer}>
-          <View style={styles.emptyIcon}>
-            <RefreshCw size={48} color="#9ca3af" />
-          </View>
-          <Text style={styles.emptyTitle}>Tekrarlayan ödeme yok</Text>
-          <Text style={styles.emptyText}>
-            Kira, sigorta, fatura gibi{"\n"}
-            düzenli ödemelerinizi ekleyin
-          </Text>
-          <TouchableOpacity
-            style={styles.emptyButton}
-            onPress={() => setShowAddModal(true)}
-          >
-            <Plus size={20} color="#fff" />
-            <Text style={styles.emptyButtonText}>Ödeme Ekle</Text>
-          </TouchableOpacity>
-        </View>
+        <EmptyState
+          icon={<RefreshCw size={56} color={COLORS.gray[400]} />}
+          title="Tekrarlayan ödeme yok"
+          description="Kira, sigorta, fatura gibi düzenli ödemelerinizi ekleyin"
+          action={
+            <TouchableOpacity
+              style={styles.actionButton}
+              onPress={openAddModal}
+              accessibilityLabel="Ödeme ekle"
+              accessibilityRole="button"
+            >
+              <Text style={styles.actionButtonText}>Ödeme Ekle</Text>
+            </TouchableOpacity>
+          }
+        />
       )}
 
       {/* Add Modal */}
       <AddTekrarlayanOdemeModal
         visible={showAddModal}
-        onClose={() => setShowAddModal(false)}
+        onClose={closeAddModal}
       />
     </SafeAreaView>
   );
@@ -238,6 +158,16 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#f9fafb",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 12,
+  },
+  loadingText: {
+    fontSize: 16,
+    color: "#6b7280",
   },
   header: {
     flexDirection: "row",
@@ -259,165 +189,20 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  summaryCard: {
-    flexDirection: "row",
-    backgroundColor: "#fff",
-    marginHorizontal: 16,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  summaryItem: {
-    flex: 1,
-    alignItems: "center",
-    gap: 4,
-  },
-  summaryDivider: {
-    width: 1,
-    backgroundColor: "#e5e7eb",
-    marginHorizontal: 8,
-  },
-  summaryValue: {
-    fontSize: 19,
-    fontWeight: "700",
-    color: "#111827",
-    marginTop: 4,
-  },
-  summaryLabel: {
-    fontSize: 19,
-    color: "#6b7280",
-  },
   listContent: {
     paddingHorizontal: 16,
     paddingBottom: 20,
     gap: 12,
   },
-  odemeCard: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    padding: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
-  },
-  odemeCardOverdue: {
-    borderLeftWidth: 4,
-    borderLeftColor: "#ef4444",
-  },
-  odemeCardDueSoon: {
-    borderLeftWidth: 4,
-    borderLeftColor: "#f59e0b",
-  },
-  odemeLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    flex: 1,
-  },
-  odemeIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: "#ede9fe",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  odemeIconOverdue: {
-    backgroundColor: "#fee2e2",
-  },
-  odemeIconDueSoon: {
-    backgroundColor: "#fef3c7",
-  },
-  odemeInfo: {
-    flex: 1,
-    gap: 2,
-  },
-  odemeName: {
-    fontSize: 19,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  odemeMeta: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    marginTop: 2,
-  },
-  odemeDate: {
-    fontSize: 19,
-    color: "#6b7280",
-  },
-  odemeDateOverdue: {
-    color: "#ef4444",
-    fontWeight: "500",
-  },
-  odemeFrequency: {
-    fontSize: 19,
-    color: "#9ca3af",
-  },
-  odemeCari: {
-    fontSize: 19,
-    color: "#8b5cf6",
-    marginTop: 2,
-  },
-  odemeAmount: {
-    fontSize: 19,
-    fontWeight: "600",
-    color: "#ef4444",
-  },
-  odemeAmountOverdue: {
-    color: "#ef4444",
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 40,
-  },
-  emptyIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    backgroundColor: "#f3f4f6",
-    justifyContent: "center",
-    alignItems: "center",
-    marginBottom: 24,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#111827",
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 19,
-    color: "#6b7280",
-    textAlign: "center",
-    lineHeight: 22,
-    marginBottom: 24,
-  },
-  emptyButton: {
-    flexDirection: "row",
-    alignItems: "center",
+  actionButton: {
     backgroundColor: "#8b5cf6",
     paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 12,
-    gap: 8,
+    paddingVertical: 12,
+    borderRadius: 10,
   },
-  emptyButtonText: {
+  actionButtonText: {
     color: "#fff",
-    fontSize: 19,
+    fontSize: 15,
     fontWeight: "600",
   },
 });

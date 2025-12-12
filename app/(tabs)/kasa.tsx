@@ -1,61 +1,28 @@
-import { useState, useEffect } from "react";
+// Kasa/Hesaplar Screen - Refactored
+
+import { useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  TouchableOpacity,
   RefreshControl,
+  TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import {
-  Plus,
-  Wallet,
-  Building2,
-  CreditCard,
-  PiggyBank,
-  ChevronRight,
-  ChevronDown,
-  ChevronUp,
-} from "lucide-react-native";
-import { useStore } from "../../src/store/useStore";
+import { Plus, Wallet } from "lucide-react-native";
+
 import AddKasaModal from "../../src/components/AddKasaModal";
 import KasaDetayModal from "../../src/components/KasaDetayModal";
+import {
+  KasaGroup,
+  KasaTotalCard,
+  useKasaScreenData,
+  kasaGroups,
+} from "../../src/features/kasa";
 import { Kasa as KasaType } from "../../src/types";
 
-const kasaGroups = [
-  {
-    type: "nakit",
-    label: "Nakit",
-    icon: Wallet,
-    color: "#10b981",
-    bgColor: "#dcfce7",
-  },
-  {
-    type: "banka",
-    label: "Banka Hesabı",
-    icon: Building2,
-    color: "#3b82f6",
-    bgColor: "#dbeafe",
-  },
-  {
-    type: "kredi_karti",
-    label: "Kredi Kartı",
-    icon: CreditCard,
-    color: "#f59e0b",
-    bgColor: "#fef3c7",
-  },
-  {
-    type: "birikim",
-    label: "Birikim",
-    icon: PiggyBank,
-    color: "#8b5cf6",
-    bgColor: "#ede9fe",
-  },
-];
-
 export default function Kasa() {
-  const { kasalar, fetchKasalar, fetchProfile, profile } = useStore();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showDetayModal, setShowDetayModal] = useState(false);
   const [selectedKasa, setSelectedKasa] = useState<KasaType | null>(null);
@@ -69,27 +36,12 @@ export default function Kasa() {
     }
   );
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
-
-  useEffect(() => {
-    if (profile?.restaurant_id) {
-      fetchKasalar();
-    }
-  }, [profile?.restaurant_id]);
+  const { kasalar, genelToplam, getGroupData, refresh } = useKasaScreenData();
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchKasalar();
+    await refresh();
     setRefreshing(false);
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("tr-TR", {
-      style: "currency",
-      currency: "TRY",
-    }).format(amount);
   };
 
   const handleKasaPress = (kasa: KasaType) => {
@@ -98,97 +50,7 @@ export default function Kasa() {
   };
 
   const toggleGroup = (type: string) => {
-    setExpandedGroups((prev) => ({
-      ...prev,
-      [type]: !prev[type],
-    }));
-  };
-
-  // Grup bazında kasaları ve toplamları hesapla
-  const getGroupData = (type: string) => {
-    const groupKasalar = kasalar.filter((k) => k.type === type);
-    const total = groupKasalar.reduce((sum, k) => sum + k.balance, 0);
-    return { kasalar: groupKasalar, total };
-  };
-
-  // Genel toplam
-  const genelToplam = kasalar.reduce((sum, k) => sum + k.balance, 0);
-
-  const renderKasaItem = (kasa: KasaType) => {
-    return (
-      <TouchableOpacity
-        key={kasa.id}
-        style={styles.kasaItem}
-        onPress={() => handleKasaPress(kasa)}
-      >
-        <View style={styles.kasaItemLeft}>
-          <Text style={styles.kasaItemName}>{kasa.name}</Text>
-        </View>
-        <View style={styles.kasaItemRight}>
-          <Text
-            style={[
-              styles.kasaItemBalance,
-              kasa.balance < 0 && styles.kasaItemBalanceNegative,
-            ]}
-          >
-            {formatCurrency(kasa.balance)}
-          </Text>
-          <ChevronRight size={18} color="#9ca3af" />
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderGroup = (group: (typeof kasaGroups)[0]) => {
-    const { kasalar: groupKasalar, total } = getGroupData(group.type);
-    const isExpanded = expandedGroups[group.type];
-    const IconComponent = group.icon;
-
-    // Grup boşsa gösterme
-    if (groupKasalar.length === 0) return null;
-
-    return (
-      <View key={group.type} style={styles.groupContainer}>
-        <TouchableOpacity
-          style={styles.groupHeader}
-          onPress={() => toggleGroup(group.type)}
-          activeOpacity={0.7}
-        >
-          <View style={styles.groupLeft}>
-            <View
-              style={[styles.groupIcon, { backgroundColor: group.bgColor }]}
-            >
-              <IconComponent size={20} color={group.color} />
-            </View>
-            <Text style={styles.groupTitle}>{group.label}</Text>
-            <View style={styles.groupCount}>
-              <Text style={styles.groupCountText}>{groupKasalar.length}</Text>
-            </View>
-          </View>
-          <View style={styles.groupRight}>
-            <Text
-              style={[
-                styles.groupTotal,
-                total < 0 && styles.groupTotalNegative,
-              ]}
-            >
-              {formatCurrency(total)}
-            </Text>
-            {isExpanded ? (
-              <ChevronUp size={20} color="#6b7280" />
-            ) : (
-              <ChevronDown size={20} color="#6b7280" />
-            )}
-          </View>
-        </TouchableOpacity>
-
-        {isExpanded && (
-          <View style={styles.groupContent}>
-            {groupKasalar.map((kasa) => renderKasaItem(kasa))}
-          </View>
-        )}
-      </View>
-    );
+    setExpandedGroups((prev) => ({ ...prev, [type]: !prev[type] }));
   };
 
   return (
@@ -211,22 +73,21 @@ export default function Kasa() {
           </TouchableOpacity>
         </View>
 
-        {/* Toplam Bakiye */}
-        <View style={styles.totalCard}>
-          <Text style={styles.totalLabel}>Hesap Toplamı</Text>
-          <Text
-            style={[
-              styles.totalAmount,
-              genelToplam < 0 && styles.totalAmountNegative,
-            ]}
-          >
-            {formatCurrency(genelToplam)}
-          </Text>
-        </View>
+        {/* Toplam */}
+        <KasaTotalCard total={genelToplam} />
 
         {/* Hesap Grupları */}
         <View style={styles.groupsContainer}>
-          {kasaGroups.map(renderGroup)}
+          {kasaGroups.map((group) => (
+            <KasaGroup
+              key={group.type}
+              group={group}
+              data={getGroupData(group.type)}
+              isExpanded={expandedGroups[group.type]}
+              onToggle={() => toggleGroup(group.type)}
+              onKasaPress={handleKasaPress}
+            />
+          ))}
         </View>
 
         {/* Boş durum */}
@@ -246,19 +107,17 @@ export default function Kasa() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Add Modal */}
+      {/* Modals */}
       <AddKasaModal
         visible={showAddModal}
         onClose={() => setShowAddModal(false)}
       />
-
-      {/* Detay Modal */}
       <KasaDetayModal
         visible={showDetayModal}
         onClose={() => {
           setShowDetayModal(false);
           setSelectedKasa(null);
-          fetchKasalar();
+          refresh();
         }}
         kasa={selectedKasa}
       />
@@ -294,115 +153,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  totalCard: {
-    backgroundColor: "#111827",
-    marginHorizontal: 16,
-    borderRadius: 20,
-    padding: 24,
-    marginBottom: 20,
-    alignItems: "center",
-  },
-  totalLabel: {
-    fontSize: 14,
-    color: "#9ca3af",
-    marginBottom: 8,
-  },
-  totalAmount: {
-    fontSize: 36,
-    fontWeight: "bold",
-    color: "#fff",
-  },
-  totalAmountNegative: {
-    color: "#f87171",
-  },
   groupsContainer: {
     paddingHorizontal: 16,
     gap: 12,
-  },
-  groupContainer: {
-    backgroundColor: "#fff",
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  groupHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 16,
-  },
-  groupLeft: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  groupIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  groupTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  groupCount: {
-    backgroundColor: "#f3f4f6",
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 10,
-  },
-  groupCountText: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#6b7280",
-  },
-  groupRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  groupTotal: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#111827",
-  },
-  groupTotalNegative: {
-    color: "#ef4444",
-  },
-  groupContent: {
-    borderTopWidth: 1,
-    borderTopColor: "#f3f4f6",
-  },
-  kasaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: 14,
-    paddingHorizontal: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: "#f3f4f6",
-  },
-  kasaItemLeft: {
-    flex: 1,
-  },
-  kasaItemName: {
-    fontSize: 15,
-    color: "#374151",
-  },
-  kasaItemRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  kasaItemBalance: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: "#111827",
-  },
-  kasaItemBalanceNegative: {
-    color: "#ef4444",
   },
   emptyCard: {
     backgroundColor: "#fff",
