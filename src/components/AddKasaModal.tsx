@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,8 @@ import {
   Building2,
   CreditCard,
   PiggyBank,
+  Calendar,
+  Info,
 } from "lucide-react-native";
 import { useStore } from "../store/useStore";
 import { KasaType } from "../types";
@@ -55,13 +57,31 @@ export default function AddKasaModal({ visible, onClose }: AddKasaModalProps) {
   const [type, setType] = useState<KasaType>("nakit");
   const [currency, setCurrency] = useState<"TRY" | "USD" | "EUR">("TRY");
 
+  // Kredi kartı için özel alanlar
+  const [creditLimit, setCreditLimit] = useState("");
+  const [billingDay, setBillingDay] = useState("1");
+  const [dueDay, setDueDay] = useState("15");
+  const [currentDebt, setCurrentDebt] = useState(""); // Mevcut borç (opsiyonel)
+
   const isPro = profile?.plan === "pro" || profile?.plan === "premium";
+  const isKrediKarti = type === "kredi_karti";
 
   const resetForm = () => {
     setName("");
     setType("nakit");
     setCurrency("TRY");
+    setCreditLimit("");
+    setBillingDay("1");
+    setDueDay("15");
+    setCurrentDebt("");
   };
+
+  // Kredi kartı seçildiğinde varsayılan değerleri ayarla
+  useEffect(() => {
+    if (type === "kredi_karti") {
+      setCurrency("TRY"); // Kredi kartı sadece TRY olabilir
+    }
+  }, [type]);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
@@ -77,15 +97,50 @@ export default function AddKasaModal({ visible, onClose }: AddKasaModalProps) {
       return;
     }
 
+    // Kredi kartı validasyonları
+    if (isKrediKarti) {
+      if (!creditLimit || parseFloat(creditLimit) <= 0) {
+        Alert.alert("Hata", "Kredi limiti zorunludur ve 0'dan büyük olmalıdır");
+        return;
+      }
+
+      const billing = parseInt(billingDay);
+      const due = parseInt(dueDay);
+
+      if (billing < 1 || billing > 31) {
+        Alert.alert("Hata", "Ekstre kesim günü 1-31 arasında olmalıdır");
+        return;
+      }
+
+      if (due < 1 || due > 31) {
+        Alert.alert("Hata", "Son ödeme günü 1-31 arasında olmalıdır");
+        return;
+      }
+    }
+
     setLoading(true);
-    const { error } = await addKasa({
+
+    const kasaData: any = {
       name: name.trim(),
       type,
       currency,
       is_active: true,
       is_archived: false,
       restaurant_id: "",
-    });
+    };
+
+    // Kredi kartı için özel alanlar
+    if (isKrediKarti) {
+      kasaData.credit_limit = parseFloat(creditLimit);
+      kasaData.billing_day = parseInt(billingDay);
+      kasaData.due_day = parseInt(dueDay);
+      // Mevcut borç varsa balance olarak ekle
+      if (currentDebt && parseFloat(currentDebt) > 0) {
+        kasaData.balance = parseFloat(currentDebt);
+      }
+    }
+
+    const { error } = await addKasa(kasaData);
     setLoading(false);
 
     if (error) {
@@ -94,6 +149,12 @@ export default function AddKasaModal({ visible, onClose }: AddKasaModalProps) {
       resetForm();
       onClose();
     }
+  };
+
+  const formatCurrency = (value: string) => {
+    // Sadece rakam ve nokta kabul et
+    const cleaned = value.replace(/[^0-9.]/g, "");
+    return cleaned;
   };
 
   return (
@@ -177,44 +238,150 @@ export default function AddKasaModal({ visible, onClose }: AddKasaModalProps) {
             style={styles.input}
             value={name}
             onChangeText={setName}
-            placeholder="Örn: Ana Kasa, Ziraat Bankası"
+            placeholder={
+              isKrediKarti
+                ? "Örn: Yapı Kredi, Garanti BONUS"
+                : "Örn: Ana Kasa, Ziraat Bankası"
+            }
             placeholderTextColor="#9ca3af"
           />
 
-          {/* Para Birimi */}
-          <Text style={styles.label}>Para Birimi</Text>
-          <View style={styles.currencyButtons}>
-            {(["TRY", "USD", "EUR"] as const).map((curr) => {
-              const isDisabled = curr !== "TRY" && !isPro;
-              return (
-                <TouchableOpacity
-                  key={curr}
-                  style={[
-                    styles.currencyButton,
-                    currency === curr && styles.currencyButtonActive,
-                    isDisabled && styles.currencyButtonDisabled,
-                  ]}
-                  onPress={() => !isDisabled && setCurrency(curr)}
-                  disabled={isDisabled}
-                >
-                  <Text
-                    style={[
-                      styles.currencyButtonText,
-                      currency === curr && styles.currencyButtonTextActive,
-                      isDisabled && styles.currencyButtonTextDisabled,
-                    ]}
-                  >
-                    {curr === "TRY"
-                      ? "₺ TRY"
-                      : curr === "USD"
-                      ? "$ USD"
-                      : "€ EUR"}
-                  </Text>
-                  {isDisabled && <Text style={styles.proTag}>PRO</Text>}
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {/* Kredi Kartı Özel Alanları */}
+          {isKrediKarti && (
+            <>
+              {/* Bilgi Kutusu */}
+              <View style={styles.infoBox}>
+                <Info size={18} color="#3b82f6" />
+                <Text style={styles.infoText}>
+                  Kredi kartı borcu "kullanılan limit" olarak takip edilir.
+                  Harcama yaptıkça borç artar, ödeme yaptıkça azalır.
+                </Text>
+              </View>
+
+              {/* Kredi Limiti */}
+              <Text style={styles.label}>Kredi Limiti *</Text>
+              <View style={styles.inputWithPrefix}>
+                <Text style={styles.inputPrefix}>₺</Text>
+                <TextInput
+                  style={styles.inputWithPrefixField}
+                  value={creditLimit}
+                  onChangeText={(text) => setCreditLimit(formatCurrency(text))}
+                  placeholder="50000"
+                  placeholderTextColor="#9ca3af"
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {/* Mevcut Borç (Opsiyonel) */}
+              <Text style={styles.label}>Mevcut Borç (Opsiyonel)</Text>
+              <View style={styles.inputWithPrefix}>
+                <Text style={styles.inputPrefix}>₺</Text>
+                <TextInput
+                  style={styles.inputWithPrefixField}
+                  value={currentDebt}
+                  onChangeText={(text) => setCurrentDebt(formatCurrency(text))}
+                  placeholder="0"
+                  placeholderTextColor="#9ca3af"
+                  keyboardType="numeric"
+                />
+              </View>
+              <Text style={styles.helperText}>
+                Kartınızda mevcut borç varsa girin, yoksa boş bırakın.
+              </Text>
+
+              {/* Ekstre Kesim ve Son Ödeme Günleri */}
+              <View style={styles.rowInputs}>
+                <View style={styles.halfInput}>
+                  <Text style={styles.label}>Ekstre Kesim Günü</Text>
+                  <View style={styles.dayInputContainer}>
+                    <Calendar size={18} color="#6b7280" />
+                    <TextInput
+                      style={styles.dayInput}
+                      value={billingDay}
+                      onChangeText={(text) => {
+                        const num = text.replace(/[^0-9]/g, "");
+                        if (
+                          num === "" ||
+                          (parseInt(num) >= 1 && parseInt(num) <= 31)
+                        ) {
+                          setBillingDay(num);
+                        }
+                      }}
+                      placeholder="1"
+                      placeholderTextColor="#9ca3af"
+                      keyboardType="numeric"
+                      maxLength={2}
+                    />
+                    <Text style={styles.dayLabel}>. gün</Text>
+                  </View>
+                </View>
+
+                <View style={styles.halfInput}>
+                  <Text style={styles.label}>Son Ödeme Günü</Text>
+                  <View style={styles.dayInputContainer}>
+                    <Calendar size={18} color="#6b7280" />
+                    <TextInput
+                      style={styles.dayInput}
+                      value={dueDay}
+                      onChangeText={(text) => {
+                        const num = text.replace(/[^0-9]/g, "");
+                        if (
+                          num === "" ||
+                          (parseInt(num) >= 1 && parseInt(num) <= 31)
+                        ) {
+                          setDueDay(num);
+                        }
+                      }}
+                      placeholder="15"
+                      placeholderTextColor="#9ca3af"
+                      keyboardType="numeric"
+                      maxLength={2}
+                    />
+                    <Text style={styles.dayLabel}>. gün</Text>
+                  </View>
+                </View>
+              </View>
+            </>
+          )}
+
+          {/* Para Birimi - Kredi kartı için gösterme */}
+          {!isKrediKarti && (
+            <>
+              <Text style={styles.label}>Para Birimi</Text>
+              <View style={styles.currencyButtons}>
+                {(["TRY", "USD", "EUR"] as const).map((curr) => {
+                  const isDisabled = curr !== "TRY" && !isPro;
+                  return (
+                    <TouchableOpacity
+                      key={curr}
+                      style={[
+                        styles.currencyButton,
+                        currency === curr && styles.currencyButtonActive,
+                        isDisabled && styles.currencyButtonDisabled,
+                      ]}
+                      onPress={() => !isDisabled && setCurrency(curr)}
+                      disabled={isDisabled}
+                    >
+                      <Text
+                        style={[
+                          styles.currencyButtonText,
+                          currency === curr && styles.currencyButtonTextActive,
+                          isDisabled && styles.currencyButtonTextDisabled,
+                        ]}
+                      >
+                        {curr === "TRY"
+                          ? "₺ TRY"
+                          : curr === "USD"
+                          ? "$ USD"
+                          : "€ EUR"}
+                      </Text>
+                      {isDisabled && <Text style={styles.proTag}>PRO</Text>}
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </>
+          )}
 
           <View style={styles.bottomPadding} />
         </ScrollView>
@@ -257,25 +424,25 @@ const styles = StyleSheet.create({
   saveButtonText: {
     color: "#fff",
     fontWeight: "600",
-    fontSize: 19,
+    fontSize: 16,
   },
   content: {
     flex: 1,
     padding: 16,
   },
   label: {
-    fontSize: 19,
+    fontSize: 15,
     fontWeight: "500",
     color: "#374151",
-    marginBottom: 12,
-    marginTop: 20,
+    marginBottom: 8,
+    marginTop: 16,
   },
   input: {
     backgroundColor: "#f3f4f6",
     borderRadius: 12,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontSize: 19,
+    fontSize: 16,
     color: "#111827",
   },
   typeGrid: {
@@ -304,7 +471,7 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   typeLabel: {
-    fontSize: 19,
+    fontSize: 14,
     fontWeight: "600",
     color: "#111827",
   },
@@ -321,7 +488,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
   proBadgeText: {
-    fontSize: 20,
+    fontSize: 10,
     fontWeight: "700",
     color: "#f59e0b",
   },
@@ -346,7 +513,7 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   currencyButtonText: {
-    fontSize: 19,
+    fontSize: 14,
     fontWeight: "600",
     color: "#6b7280",
   },
@@ -357,12 +524,79 @@ const styles = StyleSheet.create({
     color: "#9ca3af",
   },
   proTag: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: "700",
     color: "#f59e0b",
     marginTop: 2,
   },
   bottomPadding: {
     height: 40,
+  },
+  // Kredi kartı özel stilleri
+  infoBox: {
+    flexDirection: "row",
+    backgroundColor: "#eff6ff",
+    padding: 12,
+    borderRadius: 12,
+    marginTop: 16,
+    gap: 10,
+    alignItems: "flex-start",
+  },
+  infoText: {
+    flex: 1,
+    fontSize: 13,
+    color: "#1e40af",
+    lineHeight: 18,
+  },
+  inputWithPrefix: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 12,
+    paddingHorizontal: 16,
+  },
+  inputPrefix: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#6b7280",
+    marginRight: 8,
+  },
+  inputWithPrefixField: {
+    flex: 1,
+    paddingVertical: 14,
+    fontSize: 16,
+    color: "#111827",
+  },
+  helperText: {
+    fontSize: 12,
+    color: "#6b7280",
+    marginTop: 6,
+  },
+  rowInputs: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  halfInput: {
+    flex: 1,
+  },
+  dayInputContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#f3f4f6",
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 8,
+  },
+  dayInput: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#111827",
+    minWidth: 30,
+    textAlign: "center",
+  },
+  dayLabel: {
+    fontSize: 14,
+    color: "#6b7280",
   },
 });

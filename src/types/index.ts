@@ -30,8 +30,32 @@ export interface RestaurantUser {
   user_id: string;
   role: "admin" | "muhasebeci" | "satin_almaci" | "kasiyer";
   is_active: boolean;
+  permissions: UserPermissions; // YENİ - Yetki sistemi için
   created_at: string;
   updated_at: string;
+  // Joined
+  user?: Profile;
+  restaurant?: Restaurant;
+}
+
+// Kullanıcı yetkileri
+export interface UserPermissions {
+  // Modül erişimleri
+  dashboard?: boolean;
+  kasalar?: boolean;
+  cariler?: boolean;
+  personel?: boolean;
+  islemler?: boolean;
+  raporlar?: boolean;
+  tekrarlayan_odemeler?: boolean;
+  cek_senet?: boolean;
+  gunluk_satis?: boolean;
+  ayarlar?: boolean;
+  // İşlem yetkileri
+  can_create?: boolean;
+  can_edit?: boolean;
+  can_delete?: boolean;
+  can_export?: boolean;
 }
 
 // ==========================================
@@ -48,11 +72,26 @@ export interface Kasa {
   is_active: boolean;
   is_archived: boolean;
   exclude_from_profit?: boolean;
+  // Kredi kartı için özel alanlar
+  credit_limit?: number; // Kredi limiti
+  billing_day?: number; // Ekstre kesim günü (1-31)
+  due_day?: number; // Son ödeme günü (1-31)
   created_at: string;
   updated_at: string;
 }
 
 export type KasaType = Kasa["type"];
+
+// Kredi kartı hesaplama yardımcıları
+export interface KrediKartiOzet {
+  limit: number;
+  kullanilan: number; // balance değeri
+  kullanilabilir: number; // limit - kullanilan
+  buAyHarcama: number;
+  taksitliBorcToplam: number;
+  ekstreKesim: number;
+  sonOdeme: number;
+}
 
 // ==========================================
 // CARİ HESAP
@@ -108,7 +147,8 @@ export interface Islem {
     | "tahsilat"
     | "iade"
     | "satis"
-    | "musteri_iade";
+    | "musteri_iade"
+    | "kredi_karti_odeme"; // YENİ - Kredi kartı borç ödemesi
   amount: number;
   description?: string;
   date: string;
@@ -117,6 +157,7 @@ export interface Islem {
   cari_id?: string;
   kategori_id?: string;
   personel_id?: string;
+  taksit_id?: string; // YENİ - Taksitli işlem bağlantısı
   image_url?: string;
   created_by: string;
   created_at: string;
@@ -127,6 +168,7 @@ export interface Islem {
   cari?: Cari;
   kategori?: Kategori;
   personel?: Personel;
+  taksit?: Taksit;
 }
 
 export type IslemType = Islem["type"];
@@ -229,7 +271,7 @@ export interface Izin {
   id: string;
   restaurant_id: string;
   personel_id: string;
-  type: "yillik" | "hastalik" | "mazeret" | "ucretsiz";
+  type: "yillik" | "hastalik" | "mazeret" | "ucretsiz" | "diger";
   start_date: string;
   end_date: string;
   days: number;
@@ -322,8 +364,9 @@ export interface Taksit {
   installment_amount: number;
   paid_count: number;
   remaining_amount: number;
-  kasa_id?: string;
+  kasa_id?: string; // Kredi kartı kasası
   kategori_id?: string;
+  cari_id?: string; // YENİ - Tedarikçi bağlantısı
   start_date: string;
   next_payment_date?: string;
   is_completed: boolean;
@@ -333,6 +376,7 @@ export interface Taksit {
   // Joined
   kasa?: Kasa;
   kategori?: Kategori;
+  cari?: Cari; // YENİ
   odemeler?: TaksitOdemesi[];
 }
 
@@ -589,3 +633,24 @@ export type CreateAnimsaticiInput = Omit<
   Animsatici,
   "id" | "created_at" | "updated_at" | "is_completed" | "completed_at"
 >;
+
+// ==========================================
+// KREDİ KARTI İŞLEM TİPLERİ
+// ==========================================
+
+export type KrediKartiIslemTipi =
+  | "harcama" // Tek çekim harcama
+  | "taksitli" // Taksitli alışveriş
+  | "odeme" // Kart borcu ödeme
+  | "iade"; // İade/iptal
+
+export interface KrediKartiHarcama {
+  kasa_id: string;
+  amount: number;
+  description?: string;
+  date: string;
+  kategori_id?: string;
+  cari_id?: string; // Tedarikçi (opsiyonel)
+  is_taksitli: boolean;
+  taksit_sayisi?: number; // Taksitli ise
+}

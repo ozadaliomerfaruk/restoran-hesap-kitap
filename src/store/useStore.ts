@@ -1,34 +1,62 @@
+/**
+ * Ana Store - Tüm Slice'ları Birleştirir
+ *
+ * Bu dosya artık sadece slice'ları birleştiriyor.
+ * Her modülün mantığı kendi slice dosyasında.
+ */
+
 import { create } from "zustand";
-import { supabase } from "../lib/supabase";
 import {
+  Profile,
+  Subscription,
   Kasa,
   Cari,
   Kategori,
   Islem,
-  Profile,
   Personel,
   PersonelIslem,
   Izin,
   TekrarlayanOdeme,
   CekSenet,
-  GunlukSatis,
   Taksit,
-  TaksitOdemesi,
+  GunlukSatis,
   Animsatici,
   MenuItem,
-  Urun,
-  Subscription,
-  SatisKaydi,
   UrunKategorisi,
+  Urun,
+  SatisKaydi,
 } from "../types";
 
+// Services
+import {
+  profileService,
+  kasaService,
+  cariService,
+  kategoriService,
+  islemService,
+  personelService,
+  tekrarlayanOdemeService,
+  cekSenetService,
+  taksitService,
+  gunlukSatisService,
+  animsaticiService,
+  menuItemService,
+  urunService,
+  satisKaydiService,
+} from "../services/supabase";
+
+import { supabase } from "../lib/supabase";
+
+// ==========================================
+// STATE INTERFACE
+// ==========================================
 interface AppState {
   // Profile
   profile: Profile | null;
   loadingProfile: boolean;
   fetchProfile: () => Promise<void>;
 
-  // Subscription (Plan Limitleri)
+  // Subscription
   subscription: Subscription | null;
   loadingSubscription: boolean;
   fetchSubscription: () => Promise<void>;
@@ -203,7 +231,7 @@ interface AppState {
   addUrunKategorisi: (name: string) => Promise<{ error: any }>;
   deleteUrunKategorisi: (id: string) => Promise<{ error: any }>;
 
-  // Satış Kayıtları (Ürün Bazlı Takip - Gelir/Gideri Etkilemez)
+  // Satış Kayıtları
   satisKayitlari: SatisKaydi[];
   loadingSatisKayitlari: boolean;
   fetchSatisKayitlari: (limit?: number) => Promise<void>;
@@ -234,7 +262,7 @@ interface AppState {
   ) => Promise<{ error: any }>;
   updateUrun: (id: string, updates: Partial<Urun>) => Promise<{ error: any }>;
 
-  // Kasalar Arası Transfer
+  // Transfer
   transferBetweenKasalar: (
     fromKasaId: string,
     toKasaId: string,
@@ -243,6 +271,9 @@ interface AppState {
   ) => Promise<{ error: any }>;
 }
 
+// ==========================================
+// STORE IMPLEMENTATION
+// ==========================================
 export const useStore = create<AppState>((set, get) => ({
   // ==========================================
   // PROFILE
@@ -251,18 +282,8 @@ export const useStore = create<AppState>((set, get) => ({
   loadingProfile: false,
   fetchProfile: async () => {
     set({ loadingProfile: true });
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (user) {
-      const { data } = await supabase
-        .from("profiles")
-        .select("*")
-        .eq("id", user.id)
-        .single();
-      set({ profile: data });
-    }
-    set({ loadingProfile: false });
+    const { data } = await profileService.fetchProfile();
+    set({ profile: data, loadingProfile: false });
   },
 
   // ==========================================
@@ -274,11 +295,9 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingSubscription: true });
     const { profile } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("subscriptions")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .single();
+      const { data } = await profileService.fetchSubscription(
+        profile.restaurant_id
+      );
       set({ subscription: data });
     }
     set({ loadingSubscription: false });
@@ -293,50 +312,34 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingKasalar: true });
     const { profile } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("kasalar")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .eq("is_archived", false)
-        .order("created_at", { ascending: true });
-      set({ kasalar: data || [] });
+      const { data } = await kasaService.fetchAll(profile.restaurant_id);
+      set({ kasalar: data });
     }
     set({ loadingKasalar: false });
   },
+
   addKasa: async (kasa) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const { error } = await supabase
-      .from("kasalar")
-      .insert({ ...kasa, restaurant_id: profile.restaurant_id, balance: 0 });
+    const { error } = await kasaService.create({
+      ...kasa,
+      restaurant_id: profile.restaurant_id,
+    });
 
-    if (!error) {
-      get().fetchKasalar();
-    }
+    if (!error) get().fetchKasalar();
     return { error };
   },
+
   updateKasa: async (id, updates) => {
-    const { error } = await supabase
-      .from("kasalar")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    if (!error) {
-      get().fetchKasalar();
-    }
+    const { error } = await kasaService.update(id, updates);
+    if (!error) get().fetchKasalar();
     return { error };
   },
-  deleteKasa: async (id) => {
-    // Soft delete - arşive al
-    const { error } = await supabase
-      .from("kasalar")
-      .update({ is_archived: true, updated_at: new Date().toISOString() })
-      .eq("id", id);
 
-    if (!error) {
-      get().fetchKasalar();
-    }
+  deleteKasa: async (id) => {
+    const { error } = await kasaService.archive(id);
+    if (!error) get().fetchKasalar();
     return { error };
   },
 
@@ -349,51 +352,34 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingCariler: true });
     const { profile } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("cariler")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .eq("is_archived", false)
-        .order("name", { ascending: true });
-      set({ cariler: data || [] });
+      const { data } = await cariService.fetchAll(profile.restaurant_id);
+      set({ cariler: data });
     }
     set({ loadingCariler: false });
   },
+
   addCari: async (cari) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const { error } = await supabase.from("cariler").insert({
+    const { error } = await cariService.create({
       ...cari,
       restaurant_id: profile.restaurant_id,
-      balance: cari.initial_balance || 0,
     });
 
-    if (!error) {
-      get().fetchCariler();
-    }
+    if (!error) get().fetchCariler();
     return { error };
   },
+
   updateCari: async (id, updates) => {
-    const { error } = await supabase
-      .from("cariler")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    if (!error) {
-      get().fetchCariler();
-    }
+    const { error } = await cariService.update(id, updates);
+    if (!error) get().fetchCariler();
     return { error };
   },
-  deleteCari: async (id) => {
-    const { error } = await supabase
-      .from("cariler")
-      .update({ is_archived: true, updated_at: new Date().toISOString() })
-      .eq("id", id);
 
-    if (!error) {
-      get().fetchCariler();
-    }
+  deleteCari: async (id) => {
+    const { error } = await cariService.archive(id);
+    if (!error) get().fetchCariler();
     return { error };
   },
 
@@ -406,28 +392,22 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingKategoriler: true });
     const { profile } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("kategoriler")
-        .select("*")
-        .or(`restaurant_id.eq.${profile.restaurant_id},is_default.eq.true`)
-        .order("name", { ascending: true });
-      set({ kategoriler: data || [] });
+      const { data } = await kategoriService.fetchAll(profile.restaurant_id);
+      set({ kategoriler: data });
     }
     set({ loadingKategoriler: false });
   },
+
   addKategori: async (kategori) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const { error } = await supabase.from("kategoriler").insert({
+    const { error } = await kategoriService.create({
       ...kategori,
       restaurant_id: profile.restaurant_id,
-      is_default: false,
     });
 
-    if (!error) {
-      get().fetchKategoriler();
-    }
+    if (!error) get().fetchKategoriler();
     return { error };
   },
 
@@ -439,20 +419,13 @@ export const useStore = create<AppState>((set, get) => ({
   fetchIslemler: async (limit = 100) => {
     set({ loadingIslemler: true });
     const { profile, kasalar, cariler, kategoriler } = get();
+
     if (profile?.restaurant_id) {
-      const { data, error } = await supabase
-        .from("islemler")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .order("date", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(limit);
+      const { data } = await islemService.fetchAll(
+        profile.restaurant_id,
+        limit
+      );
 
-      if (error) {
-        console.log("fetchIslemler error:", error);
-      }
-
-      // Manually join data
       const islemlerWithJoins = (data || []).map((islem: Islem) => ({
         ...islem,
         kasa: kasalar.find((k) => k.id === islem.kasa_id),
@@ -465,96 +438,58 @@ export const useStore = create<AppState>((set, get) => ({
     }
     set({ loadingIslemler: false });
   },
+
   addIslem: async (islem) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await profileService.getCurrentUser();
     if (!user) return { error: "No user" };
 
-    const { error } = await supabase.from("islemler").insert({
+    const { error } = await islemService.create({
       ...islem,
       restaurant_id: profile.restaurant_id,
       created_by: user.id,
     });
 
     if (!error) {
-      // Update kasa balance - SADECE kasa_id varsa
-      // gelir, tahsilat: kasaya para girer (+)
-      // gider, odeme: kasadan para çıkar (-)
-      // iade, satis, musteri_iade: kasa değişmez
+      // Kasa bakiyesi güncelle
       if (islem.kasa_id && islem.type !== "transfer") {
         let kasaMultiplier = 0;
         if (islem.type === "gelir" || islem.type === "tahsilat") {
-          kasaMultiplier = 1; // Kasaya para girer
+          kasaMultiplier = 1;
         } else if (islem.type === "gider" || islem.type === "odeme") {
-          kasaMultiplier = -1; // Kasadan para çıkar
+          kasaMultiplier = -1;
         }
-        // iade, satis, musteri_iade için kasa değişmez (multiplier = 0)
 
         if (kasaMultiplier !== 0) {
-          await supabase.rpc("update_kasa_balance", {
-            kasa_id: islem.kasa_id,
-            amount: islem.amount * kasaMultiplier,
-          });
+          await kasaService.updateBalance(
+            islem.kasa_id,
+            islem.amount * kasaMultiplier
+          );
         }
       }
 
-      // Update cari balance if applicable
-      // TEDARİKÇİ İŞLEMLERİ:
-      // - gider (alış): tedarikçiye borcumuz artar (+)
-      // - iade (tedarikçi iadesi): tedarikçiye borcumuz azalır (-)
-      // - odeme: tedarikçiye ödeme yaptık, borcumuz azalır (-)
-      // - tahsilat: tedarikçiden para aldık (borç verdik), borcumuz artar (+)
-      //
-      // MÜŞTERİ İŞLEMLERİ:
-      // - satis: müşteriye sattık, müşteri borcu artar (+)
-      // - musteri_iade: müşteri iade etti, müşteri borcu azalır (-)
-      // - odeme: müşteriye para verdik (avans vb), müşteri borcu artar (+)
-      // - tahsilat: müşteriden tahsilat aldık, müşteri borcu azalır (-)
+      // Cari bakiyesi güncelle
       if (islem.cari_id) {
-        // Cari tipini al
-        const { data: cariData } = await supabase
-          .from("cariler")
-          .select("type")
-          .eq("id", islem.cari_id)
-          .single();
-
-        const cariType = cariData?.type;
+        const { type: cariType } = await cariService.getType(islem.cari_id);
         let cariMultiplier = 0;
 
-        // Borcu artıran işlemler
-        if (islem.type === "gider") {
-          cariMultiplier = 1; // Alış yaptık, tedarikçiye borcumuz arttı
-        } else if (islem.type === "satis") {
-          cariMultiplier = 1; // Satış yaptık, müşteri borcu arttı
-        }
-        // Borcu azaltan işlemler
-        else if (islem.type === "iade") {
-          cariMultiplier = -1; // Tedarikçi iadesi, borcumuz azaldı
-        } else if (islem.type === "musteri_iade") {
-          cariMultiplier = -1; // Müşteri iadesi, müşteri borcu azaldı
-        } else if (islem.type === "gelir") {
-          cariMultiplier = -1; // Gelir aldık, borç azaldı
-        }
-        // Ödeme ve tahsilat - cari tipine göre farklı davranır
-        else if (islem.type === "odeme") {
-          // Tedarikçiye ödeme: borcumuz azalır
-          // Müşteriye ödeme: müşteri borcu artar (avans verdik)
+        if (islem.type === "gider") cariMultiplier = 1;
+        else if (islem.type === "satis") cariMultiplier = 1;
+        else if (islem.type === "iade") cariMultiplier = -1;
+        else if (islem.type === "musteri_iade") cariMultiplier = -1;
+        else if (islem.type === "gelir") cariMultiplier = -1;
+        else if (islem.type === "odeme")
           cariMultiplier = cariType === "tedarikci" ? -1 : 1;
-        } else if (islem.type === "tahsilat") {
-          // Tedarikçiden tahsilat: borcumuz artar (ona borç verdik)
-          // Müşteriden tahsilat: müşteri borcu azalır
+        else if (islem.type === "tahsilat")
           cariMultiplier = cariType === "tedarikci" ? 1 : -1;
-        }
 
         if (cariMultiplier !== 0) {
-          await supabase.rpc("update_cari_balance", {
-            cari_id: islem.cari_id,
-            amount: islem.amount * cariMultiplier,
-          });
+          await cariService.updateBalance(
+            islem.cari_id,
+            islem.amount * cariMultiplier
+          );
         }
       }
 
@@ -564,12 +499,9 @@ export const useStore = create<AppState>((set, get) => ({
     }
     return { error };
   },
-  updateIslem: async (id, updates) => {
-    const { error } = await supabase
-      .from("islemler")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", id);
 
+  updateIslem: async (id, updates) => {
+    const { error } = await islemService.update(id, updates);
     if (!error) {
       get().fetchIslemler();
       get().fetchKasalar();
@@ -577,75 +509,50 @@ export const useStore = create<AppState>((set, get) => ({
     }
     return { error };
   },
+
   deleteIslem: async (id) => {
-    // Önce işlemi al, kasa/cari bakiyelerini geri almak için
     const { islemler } = get();
     const islem = islemler.find((i) => i.id === id);
 
-    const { error } = await supabase.from("islemler").delete().eq("id", id);
+    const { error } = await islemService.delete(id);
 
     if (!error && islem) {
-      // Kasa bakiyesini geri al - SADECE kasa_id varsa
-      // Silme işleminde tam tersi yapılır
+      // Kasa bakiyesini geri al
       if (islem.kasa_id && islem.type !== "transfer") {
         let kasaMultiplier = 0;
-        if (islem.type === "gelir" || islem.type === "tahsilat") {
-          kasaMultiplier = -1; // Kasaya giren para geri alınır
-        } else if (islem.type === "gider" || islem.type === "odeme") {
-          kasaMultiplier = 1; // Kasadan çıkan para geri alınır
-        }
+        if (islem.type === "gelir" || islem.type === "tahsilat")
+          kasaMultiplier = -1;
+        else if (islem.type === "gider" || islem.type === "odeme")
+          kasaMultiplier = 1;
 
         if (kasaMultiplier !== 0) {
-          await supabase.rpc("update_kasa_balance", {
-            kasa_id: islem.kasa_id,
-            amount: islem.amount * kasaMultiplier,
-          });
+          await kasaService.updateBalance(
+            islem.kasa_id,
+            islem.amount * kasaMultiplier
+          );
         }
       }
 
       // Cari bakiyesini geri al
-      // Silme işleminde tam tersi yapılır
       if (islem.cari_id) {
-        // Cari tipini al
-        const { data: cariData } = await supabase
-          .from("cariler")
-          .select("type")
-          .eq("id", islem.cari_id)
-          .single();
-
-        const cariType = cariData?.type;
+        const { type: cariType } = await cariService.getType(islem.cari_id);
         let cariMultiplier = 0;
 
-        // Borcu artırmış olan işlemler silindi → borç azalır
-        if (islem.type === "gider") {
-          cariMultiplier = -1; // Alış silindi, borcumuz azaldı
-        } else if (islem.type === "satis") {
-          cariMultiplier = -1; // Satış silindi, müşteri borcu azaldı
-        }
-        // Borcu azaltmış olan işlemler silindi → borç artar
-        else if (islem.type === "iade") {
-          cariMultiplier = 1; // Tedarikçi iadesi silindi, borcumuz tekrar arttı
-        } else if (islem.type === "musteri_iade") {
-          cariMultiplier = 1; // Müşteri iadesi silindi, müşteri borcu tekrar arttı
-        } else if (islem.type === "gelir") {
-          cariMultiplier = 1; // Gelir silindi, borç tekrar arttı
-        }
-        // Ödeme ve tahsilat - cari tipine göre farklı davranır (silmede tersi)
-        else if (islem.type === "odeme") {
-          // Tedarikçiye ödeme silindi: borcumuz tekrar arttı
-          // Müşteriye ödeme silindi: müşteri borcu azaldı
+        if (islem.type === "gider") cariMultiplier = -1;
+        else if (islem.type === "satis") cariMultiplier = -1;
+        else if (islem.type === "iade") cariMultiplier = 1;
+        else if (islem.type === "musteri_iade") cariMultiplier = 1;
+        else if (islem.type === "gelir") cariMultiplier = 1;
+        else if (islem.type === "odeme")
           cariMultiplier = cariType === "tedarikci" ? 1 : -1;
-        } else if (islem.type === "tahsilat") {
-          // Tedarikçiden tahsilat silindi: borcumuz azaldı
-          // Müşteriden tahsilat silindi: müşteri borcu tekrar arttı
+        else if (islem.type === "tahsilat")
           cariMultiplier = cariType === "tedarikci" ? -1 : 1;
-        }
 
         if (cariMultiplier !== 0) {
-          await supabase.rpc("update_cari_balance", {
-            cari_id: islem.cari_id,
-            amount: islem.amount * cariMultiplier,
-          });
+          await cariService.updateBalance(
+            islem.cari_id,
+            islem.amount * cariMultiplier
+          );
         }
       }
 
@@ -665,57 +572,34 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingPersoneller: true });
     const { profile } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("personel")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .eq("is_archived", false)
-        .order("name", { ascending: true });
-      set({ personeller: data || [] });
+      const { data } = await personelService.fetchAll(profile.restaurant_id);
+      set({ personeller: data });
     }
     set({ loadingPersoneller: false });
   },
+
   addPersonel: async (personel) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant", data: null };
 
-    const { data, error } = await supabase
-      .from("personel")
-      .insert({
-        ...personel,
-        restaurant_id: profile.restaurant_id,
-        balance: 0,
-        annual_leave_days: personel.annual_leave_days || 0,
-        used_leave_days: 0,
-      })
-      .select()
-      .single();
+    const { data, error } = await personelService.create({
+      ...personel,
+      restaurant_id: profile.restaurant_id,
+    });
 
-    if (!error) {
-      get().fetchPersoneller();
-    }
+    if (!error) get().fetchPersoneller();
     return { error, data };
   },
-  updatePersonel: async (id, updates) => {
-    const { error } = await supabase
-      .from("personel")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", id);
 
-    if (!error) {
-      get().fetchPersoneller();
-    }
+  updatePersonel: async (id, updates) => {
+    const { error } = await personelService.update(id, updates);
+    if (!error) get().fetchPersoneller();
     return { error };
   },
-  deletePersonel: async (id) => {
-    const { error } = await supabase
-      .from("personel")
-      .update({ is_archived: true, updated_at: new Date().toISOString() })
-      .eq("id", id);
 
-    if (!error) {
-      get().fetchPersoneller();
-    }
+  deletePersonel: async (id) => {
+    const { error } = await personelService.archive(id);
+    if (!error) get().fetchPersoneller();
     return { error };
   },
 
@@ -728,12 +612,9 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingPersonelIslemler: true });
     const { profile, personeller, kasalar } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("personel_islemler")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .order("date", { ascending: false })
-        .limit(100);
+      const { data } = await personelService.fetchIslemler(
+        profile.restaurant_id
+      );
 
       const islemlerWithJoins = (data || []).map((islem: PersonelIslem) => ({
         ...islem,
@@ -745,71 +626,46 @@ export const useStore = create<AppState>((set, get) => ({
     }
     set({ loadingPersonelIslemler: false });
   },
+
   addPersonelIslem: async (islem) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await profileService.getCurrentUser();
     if (!user) return { error: "No user" };
 
-    const { error } = await supabase.from("personel_islemler").insert({
+    const { error } = await personelService.createIslem({
       ...islem,
       restaurant_id: profile.restaurant_id,
       created_by: user.id,
     });
 
     if (!error) {
-      // Personel Gideri (maas, mesai, prim, tazminat, komisyon, diger):
-      // - Kasadan para ÇIKMIYOR (sadece borç kaydı)
-      // - Personel bakiyesi ARTIYOR (biz personele borçlanıyoruz)
-
-      // Ödeme:
-      // - Kasadan para ÇIKIYOR
-      // - Personel bakiyesi AZALIYOR (borcumuzu ödüyoruz)
-
-      // Tahsilat (kesinti):
-      // - Kasaya para GİRİYOR
-      // - Personel bakiyesi AZALIYOR (personelden tahsilat yapıyoruz)
-
-      // Kasadan çıkış SADECE ödeme için
+      // Kasa - ödeme için çıkış
       if (islem.kasa_id && islem.type === "odeme") {
-        await supabase.rpc("update_kasa_balance", {
-          kasa_id: islem.kasa_id,
-          amount: -islem.amount,
-        });
+        await kasaService.updateBalance(islem.kasa_id, -islem.amount);
       }
-
-      // Kasaya giriş SADECE tahsilat/kesinti için
+      // Kasa - kesinti için giriş
       if (islem.kasa_id && islem.type === "kesinti") {
-        await supabase.rpc("update_kasa_balance", {
-          kasa_id: islem.kasa_id,
-          amount: islem.amount,
-        });
+        await kasaService.updateBalance(islem.kasa_id, islem.amount);
       }
 
-      // Personel bakiyesini güncelle
+      // Personel bakiyesi
       let balanceChange = 0;
       if (
         ["maas", "prim", "mesai", "tazminat", "komisyon", "diger"].includes(
           islem.type
         )
       ) {
-        balanceChange = islem.amount; // Biz borçlandık (pozitif = biz borçluyuz)
+        balanceChange = islem.amount;
       } else if (islem.type === "avans") {
-        balanceChange = -islem.amount; // Personel bize borçlandı (negatif = personel borçlu)
-      } else if (islem.type === "odeme") {
-        balanceChange = -islem.amount; // Borcumuzu ödedik
-      } else if (islem.type === "kesinti") {
-        balanceChange = -islem.amount; // Personelden tahsilat
+        balanceChange = -islem.amount;
+      } else if (islem.type === "odeme" || islem.type === "kesinti") {
+        balanceChange = -islem.amount;
       }
 
       if (balanceChange !== 0) {
-        await supabase.rpc("update_personel_balance", {
-          personel_id: islem.personel_id,
-          amount: balanceChange,
-        });
+        await personelService.updateBalance(islem.personel_id, balanceChange);
       }
 
       get().fetchPersonelIslemler();
@@ -828,12 +684,9 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingIzinler: true });
     const { profile, personeller } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("izinler")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .order("start_date", { ascending: false })
-        .limit(100);
+      const { data } = await personelService.fetchIzinler(
+        profile.restaurant_id
+      );
 
       const izinlerWithJoins = (data || []).map((izin: Izin) => ({
         ...izin,
@@ -844,36 +697,29 @@ export const useStore = create<AppState>((set, get) => ({
     }
     set({ loadingIzinler: false });
   },
+
   addIzin: async (izin) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const { error } = await supabase
-      .from("izinler")
-      .insert({ ...izin, restaurant_id: profile.restaurant_id });
+    const { error } = await personelService.createIzin({
+      ...izin,
+      restaurant_id: profile.restaurant_id,
+    });
 
     if (!error) {
-      // Yıllık izin ise kullanılan günleri güncelle
       if (izin.type === "yillik") {
-        await supabase.rpc("update_personel_used_leave", {
-          personel_id: izin.personel_id,
-          days: izin.days,
-        });
+        await personelService.updateUsedLeave(izin.personel_id, izin.days);
       }
       get().fetchIzinler();
       get().fetchPersoneller();
     }
     return { error };
   },
-  updateIzin: async (id, updates) => {
-    const { error } = await supabase
-      .from("izinler")
-      .update(updates)
-      .eq("id", id);
 
-    if (!error) {
-      get().fetchIzinler();
-    }
+  updateIzin: async (id, updates) => {
+    const { error } = await personelService.updateIzin(id, updates);
+    if (!error) get().fetchIzinler();
     return { error };
   },
 
@@ -886,12 +732,9 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingTekrarlayanOdemeler: true });
     const { profile, kasalar, cariler, kategoriler } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("tekrarlayan_odemeler")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .eq("is_active", true)
-        .order("next_date", { ascending: true });
+      const { data } = await tekrarlayanOdemeService.fetchAll(
+        profile.restaurant_id
+      );
 
       const odemelerWithJoins = (data || []).map((odeme: TekrarlayanOdeme) => ({
         ...odeme,
@@ -904,45 +747,32 @@ export const useStore = create<AppState>((set, get) => ({
     }
     set({ loadingTekrarlayanOdemeler: false });
   },
+
   addTekrarlayanOdeme: async (odeme) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await profileService.getCurrentUser();
 
-    const { error } = await supabase.from("tekrarlayan_odemeler").insert({
+    const { error } = await tekrarlayanOdemeService.create({
       ...odeme,
       restaurant_id: profile.restaurant_id,
       created_by: user?.id,
     });
 
-    if (!error) {
-      get().fetchTekrarlayanOdemeler();
-    }
+    if (!error) get().fetchTekrarlayanOdemeler();
     return { error };
   },
+
   updateTekrarlayanOdeme: async (id, updates) => {
-    const { error } = await supabase
-      .from("tekrarlayan_odemeler")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    if (!error) {
-      get().fetchTekrarlayanOdemeler();
-    }
+    const { error } = await tekrarlayanOdemeService.update(id, updates);
+    if (!error) get().fetchTekrarlayanOdemeler();
     return { error };
   },
-  deleteTekrarlayanOdeme: async (id) => {
-    const { error } = await supabase
-      .from("tekrarlayan_odemeler")
-      .update({ is_active: false, updated_at: new Date().toISOString() })
-      .eq("id", id);
 
-    if (!error) {
-      get().fetchTekrarlayanOdemeler();
-    }
+  deleteTekrarlayanOdeme: async (id) => {
+    const { error } = await tekrarlayanOdemeService.deactivate(id);
+    if (!error) get().fetchTekrarlayanOdemeler();
     return { error };
   },
 
@@ -955,11 +785,7 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingCekSenetler: true });
     const { profile, cariler, kasalar } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("cek_senet")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .order("due_date", { ascending: true });
+      const { data } = await cekSenetService.fetchAll(profile.restaurant_id);
 
       const cekSenetlerWithJoins = (data || []).map((cs: CekSenet) => ({
         ...cs,
@@ -971,74 +797,55 @@ export const useStore = create<AppState>((set, get) => ({
     }
     set({ loadingCekSenetler: false });
   },
+
   addCekSenet: async (cekSenet) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const { error } = await supabase
-      .from("cek_senet")
-      .insert({ ...cekSenet, restaurant_id: profile.restaurant_id });
+    const { error } = await cekSenetService.create({
+      ...cekSenet,
+      restaurant_id: profile.restaurant_id,
+    });
 
-    if (!error) {
-      get().fetchCekSenetler();
-    }
+    if (!error) get().fetchCekSenetler();
     return { error };
   },
+
   updateCekSenet: async (id, updates) => {
     const { cekSenetler } = get();
     const cekSenet = cekSenetler.find((cs) => cs.id === id);
 
-    const { error } = await supabase
-      .from("cek_senet")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", id);
+    const { error } = await cekSenetService.update(id, updates);
 
     if (!error && cekSenet) {
-      // Durum değişikliğinde kasa etkisi
       if (updates.status && updates.status !== cekSenet.status) {
         const kasaId = updates.kasa_id || cekSenet.kasa_id;
 
         if (kasaId) {
-          // Tahsil edildi (alınan çek/senet) -> Kasaya giriş
           if (
             updates.status === "tahsil_edildi" &&
             cekSenet.direction === "alacak"
           ) {
-            await supabase.rpc("update_kasa_balance", {
-              kasa_id: kasaId,
-              amount: cekSenet.amount,
-            });
-          }
-          // Ödendi (verilen çek/senet) -> Kasadan çıkış
-          else if (
+            await kasaService.updateBalance(kasaId, cekSenet.amount);
+          } else if (
             updates.status === "odendi" &&
             cekSenet.direction === "borc"
           ) {
-            await supabase.rpc("update_kasa_balance", {
-              kasa_id: kasaId,
-              amount: -cekSenet.amount,
-            });
+            await kasaService.updateBalance(kasaId, -cekSenet.amount);
           }
         }
 
-        // Cari bakiyesini güncelle
         if (cekSenet.cari_id) {
           if (
             updates.status === "tahsil_edildi" &&
             cekSenet.direction === "alacak"
           ) {
-            await supabase.rpc("update_cari_balance", {
-              cari_id: cekSenet.cari_id,
-              amount: -cekSenet.amount,
-            });
+            await cariService.updateBalance(cekSenet.cari_id, -cekSenet.amount);
           } else if (
             updates.status === "odendi" &&
             cekSenet.direction === "borc"
           ) {
-            await supabase.rpc("update_cari_balance", {
-              cari_id: cekSenet.cari_id,
-              amount: cekSenet.amount,
-            });
+            await cariService.updateBalance(cekSenet.cari_id, cekSenet.amount);
           }
         }
       }
@@ -1049,12 +856,10 @@ export const useStore = create<AppState>((set, get) => ({
     }
     return { error };
   },
-  deleteCekSenet: async (id) => {
-    const { error } = await supabase.from("cek_senet").delete().eq("id", id);
 
-    if (!error) {
-      get().fetchCekSenetler();
-    }
+  deleteCekSenet: async (id) => {
+    const { error } = await cekSenetService.delete(id);
+    if (!error) get().fetchCekSenetler();
     return { error };
   },
 
@@ -1067,20 +872,15 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingTaksitler: true });
     const { profile, kasalar, kategoriler } = get();
     if (profile?.restaurant_id) {
-      const { data: taksitData } = await supabase
-        .from("taksitler")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .order("next_payment_date", { ascending: true });
+      const { data: taksitData } = await taksitService.fetchAll(
+        profile.restaurant_id
+      );
 
-      // Her taksit için ödemeleri çek
       const taksitlerWithJoins = await Promise.all(
         (taksitData || []).map(async (taksit: Taksit) => {
-          const { data: odemeler } = await supabase
-            .from("taksit_odemeleri")
-            .select("*")
-            .eq("taksit_id", taksit.id)
-            .order("installment_no", { ascending: true });
+          const { data: odemeler } = await taksitService.fetchOdemeler(
+            taksit.id
+          );
 
           return {
             ...taksit,
@@ -1095,31 +895,21 @@ export const useStore = create<AppState>((set, get) => ({
     }
     set({ loadingTaksitler: false });
   },
+
   addTaksit: async (taksit) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await profileService.getCurrentUser();
 
-    // Taksiti ekle
-    const { data, error } = await supabase
-      .from("taksitler")
-      .insert({
-        ...taksit,
-        restaurant_id: profile.restaurant_id,
-        paid_count: 0,
-        remaining_amount: taksit.total_amount,
-        is_completed: false,
-        created_by: user?.id,
-      })
-      .select()
-      .single();
+    const { data, error } = await taksitService.create({
+      ...taksit,
+      restaurant_id: profile.restaurant_id,
+      created_by: user?.id,
+    });
 
     if (!error && data) {
-      // Taksit ödemelerini oluştur
-      const odemeler = [];
+      const odemeler: any[] = [];
       const startDate = new Date(taksit.start_date);
 
       for (let i = 0; i < taksit.installment_count; i++) {
@@ -1136,9 +926,8 @@ export const useStore = create<AppState>((set, get) => ({
         });
       }
 
-      await supabase.from("taksit_odemeleri").insert(odemeler);
+      await taksitService.createOdemeler(odemeler);
 
-      // İlk gider kaydını oluştur (toplam tutar)
       await get().addIslem({
         type: "gider",
         amount: taksit.total_amount,
@@ -1151,27 +940,21 @@ export const useStore = create<AppState>((set, get) => ({
     }
     return { error };
   },
-  updateTaksit: async (id, updates) => {
-    const { error } = await supabase
-      .from("taksitler")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", id);
 
-    if (!error) {
-      get().fetchTaksitler();
-    }
+  updateTaksit: async (id, updates) => {
+    const { error } = await taksitService.update(id, updates);
+    if (!error) get().fetchTaksitler();
     return { error };
   },
-  payTaksitOdemesi: async (odemesiId, kasaId) => {
-    const { profile, taksitler } = get();
-    if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    // Ödeme bilgisini bul
-    let odeme: TaksitOdemesi | undefined;
+  payTaksitOdemesi: async (odemesiId, kasaId) => {
+    const { taksitler } = get();
+
+    let odeme: any;
     let taksit: Taksit | undefined;
 
     for (const t of taksitler) {
-      const found = t.odemeler?.find((o) => o.id === odemesiId);
+      const found = t.odemeler?.find((o: any) => o.id === odemesiId);
       if (found) {
         odeme = found;
         taksit = t;
@@ -1181,42 +964,25 @@ export const useStore = create<AppState>((set, get) => ({
 
     if (!odeme || !taksit) return { error: "Ödeme bulunamadı" };
 
-    // Ödemeyi işaretle
-    const { error } = await supabase
-      .from("taksit_odemeleri")
-      .update({
-        is_paid: true,
-        paid_date: new Date().toISOString().split("T")[0],
-      })
-      .eq("id", odemesiId);
+    const { error } = await taksitService.payOdeme(odemesiId);
 
     if (!error) {
-      // Kasadan çıkış yap
-      await supabase.rpc("update_kasa_balance", {
-        kasa_id: kasaId,
-        amount: -odeme.amount,
-      });
+      await kasaService.updateBalance(kasaId, -odeme.amount);
 
-      // Taksiti güncelle
       const newPaidCount = taksit.paid_count + 1;
       const newRemainingAmount = taksit.remaining_amount - odeme.amount;
       const isCompleted = newPaidCount >= taksit.installment_count;
 
-      // Bir sonraki ödeme tarihini bul
       const nextOdeme = taksit.odemeler?.find(
-        (o) => !o.is_paid && o.id !== odemesiId
+        (o: any) => !o.is_paid && o.id !== odemesiId
       );
 
-      await supabase
-        .from("taksitler")
-        .update({
-          paid_count: newPaidCount,
-          remaining_amount: newRemainingAmount,
-          is_completed: isCompleted,
-          next_payment_date: nextOdeme?.due_date || null,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", taksit.id);
+      await taksitService.update(taksit.id, {
+        paid_count: newPaidCount,
+        remaining_amount: newRemainingAmount,
+        is_completed: isCompleted,
+        next_payment_date: nextOdeme?.due_date,
+      });
 
       get().fetchTaksitler();
       get().fetchKasalar();
@@ -1233,72 +999,35 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingGunlukSatislar: true });
     const { profile } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("gunluk_satis")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .order("date", { ascending: false })
-        .limit(30);
-
-      set({ gunlukSatislar: data || [] });
+      const { data } = await gunlukSatisService.fetchAll(profile.restaurant_id);
+      set({ gunlukSatislar: data });
     }
     set({ loadingGunlukSatislar: false });
   },
+
   addGunlukSatis: async (satis) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await profileService.getCurrentUser();
     if (!user) return { error: "No user" };
 
-    const total_amount =
-      (satis.cash_amount || 0) +
-      (satis.card_amount || 0) +
-      (satis.online_amount || 0);
-
-    const { error } = await supabase.from("gunluk_satis").insert({
+    const { error } = await gunlukSatisService.create({
       ...satis,
-      total_amount,
       restaurant_id: profile.restaurant_id,
       created_by: user.id,
     });
 
-    if (!error) {
-      get().fetchGunlukSatislar();
-    }
+    if (!error) get().fetchGunlukSatislar();
     return { error };
   },
+
   updateGunlukSatis: async (id, updates) => {
-    let total_amount;
-    if (
-      updates.cash_amount !== undefined ||
-      updates.card_amount !== undefined ||
-      updates.online_amount !== undefined
-    ) {
-      const { gunlukSatislar } = get();
-      const current = gunlukSatislar.find((s) => s.id === id);
-      if (current) {
-        total_amount =
-          (updates.cash_amount ?? current.cash_amount) +
-          (updates.card_amount ?? current.card_amount) +
-          (updates.online_amount ?? current.online_amount);
-      }
-    }
+    const { gunlukSatislar } = get();
+    const current = gunlukSatislar.find((s) => s.id === id);
 
-    const { error } = await supabase
-      .from("gunluk_satis")
-      .update({
-        ...updates,
-        ...(total_amount !== undefined && { total_amount }),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
-
-    if (!error) {
-      get().fetchGunlukSatislar();
-    }
+    const { error } = await gunlukSatisService.update(id, updates, current);
+    if (!error) get().fetchGunlukSatislar();
     return { error };
   },
 
@@ -1311,61 +1040,37 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingAnimsaticilar: true });
     const { profile } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("animsaticilar")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .eq("is_completed", false)
-        .order("due_date", { ascending: true });
-
-      set({ animsaticilar: data || [] });
+      const { data } = await animsaticiService.fetchAll(profile.restaurant_id);
+      set({ animsaticilar: data });
     }
     set({ loadingAnimsaticilar: false });
   },
+
   addAnimsatici: async (animsatici) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await profileService.getCurrentUser();
 
-    const { error } = await supabase.from("animsaticilar").insert({
+    const { error } = await animsaticiService.create({
       ...animsatici,
       restaurant_id: profile.restaurant_id,
-      is_completed: false,
       created_by: user?.id,
     });
 
-    if (!error) {
-      get().fetchAnimsaticilar();
-    }
+    if (!error) get().fetchAnimsaticilar();
     return { error };
   },
+
   updateAnimsatici: async (id, updates) => {
-    const { error } = await supabase
-      .from("animsaticilar")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    if (!error) {
-      get().fetchAnimsaticilar();
-    }
+    const { error } = await animsaticiService.update(id, updates);
+    if (!error) get().fetchAnimsaticilar();
     return { error };
   },
-  completeAnimsatici: async (id) => {
-    const { error } = await supabase
-      .from("animsaticilar")
-      .update({
-        is_completed: true,
-        completed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", id);
 
-    if (!error) {
-      get().fetchAnimsaticilar();
-    }
+  completeAnimsatici: async (id) => {
+    const { error } = await animsaticiService.complete(id);
+    if (!error) get().fetchAnimsaticilar();
     return { error };
   },
 
@@ -1378,50 +1083,34 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingMenuItems: true });
     const { profile } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("menu_items")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .eq("is_active", true)
-        .order("category", { ascending: true })
-        .order("name", { ascending: true });
-
-      set({ menuItems: data || [] });
+      const { data } = await menuItemService.fetchAll(profile.restaurant_id);
+      set({ menuItems: data });
     }
     set({ loadingMenuItems: false });
   },
+
   addMenuItem: async (item) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const { error } = await supabase.from("menu_items").insert({
+    const { error } = await menuItemService.create({
       ...item,
       restaurant_id: profile.restaurant_id,
-      is_active: true,
     });
 
-    if (!error) {
-      get().fetchMenuItems();
-    }
+    if (!error) get().fetchMenuItems();
     return { error };
   },
+
   updateMenuItem: async (id, updates) => {
-    const { error } = await supabase
-      .from("menu_items")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    if (!error) {
-      get().fetchMenuItems();
-    }
+    const { error } = await menuItemService.update(id, updates);
+    if (!error) get().fetchMenuItems();
     return { error };
   },
-  deleteMenuItem: async (id) => {
-    const { error } = await supabase.from("menu_items").delete().eq("id", id);
 
-    if (!error) {
-      get().fetchMenuItems();
-    }
+  deleteMenuItem: async (id) => {
+    const { error } = await menuItemService.delete(id);
+    if (!error) get().fetchMenuItems();
     return { error };
   },
 
@@ -1434,17 +1123,14 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingUrunKategorileri: true });
     const { profile } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("urun_kategorileri")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .order("sort_order", { ascending: true })
-        .order("name", { ascending: true });
-
-      set({ urunKategorileri: data || [] });
+      const { data } = await menuItemService.fetchKategoriler(
+        profile.restaurant_id
+      );
+      set({ urunKategorileri: data });
     }
     set({ loadingUrunKategorileri: false });
   },
+
   addUrunKategorisi: async (name) => {
     const { profile, urunKategorileri } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
@@ -1454,32 +1140,24 @@ export const useStore = create<AppState>((set, get) => ({
       0
     );
 
-    const { error } = await supabase.from("urun_kategorileri").insert({
-      restaurant_id: profile.restaurant_id,
-      name: name.trim(),
-      sort_order: maxOrder + 1,
-    });
+    const { error } = await menuItemService.createKategori(
+      profile.restaurant_id,
+      name,
+      maxOrder + 1
+    );
 
-    if (!error) {
-      get().fetchUrunKategorileri();
-    }
+    if (!error) get().fetchUrunKategorileri();
     return { error };
   },
-  deleteUrunKategorisi: async (id) => {
-    const { error } = await supabase
-      .from("urun_kategorileri")
-      .delete()
-      .eq("id", id);
 
-    if (!error) {
-      get().fetchUrunKategorileri();
-    }
+  deleteUrunKategorisi: async (id) => {
+    const { error } = await menuItemService.deleteKategori(id);
+    if (!error) get().fetchUrunKategorileri();
     return { error };
   },
 
   // ==========================================
-  // SATIŞ KAYITLARI (Ürün Bazlı Takip)
-  // Bu modül gelir/gideri ETKİLEMEZ!
+  // SATIŞ KAYITLARI
   // ==========================================
   satisKayitlari: [],
   loadingSatisKayitlari: false,
@@ -1487,15 +1165,11 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingSatisKayitlari: true });
     const { profile, menuItems } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("satis_kayitlari")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .order("date", { ascending: false })
-        .order("created_at", { ascending: false })
-        .limit(limit);
+      const { data } = await satisKaydiService.fetchAll(
+        profile.restaurant_id,
+        limit
+      );
 
-      // Join menu_item
       const kayitlarWithJoins = (data || []).map((kayit: SatisKaydi) => ({
         ...kayit,
         menu_item: menuItems.find((m) => m.id === kayit.menu_item_id),
@@ -1505,45 +1179,32 @@ export const useStore = create<AppState>((set, get) => ({
     }
     set({ loadingSatisKayitlari: false });
   },
+
   addSatisKaydi: async (kayit) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await profileService.getCurrentUser();
 
-    const { error } = await supabase.from("satis_kayitlari").insert({
+    const { error } = await satisKaydiService.create({
       ...kayit,
       restaurant_id: profile.restaurant_id,
       created_by: user?.id,
     });
 
-    if (!error) {
-      get().fetchSatisKayitlari();
-    }
+    if (!error) get().fetchSatisKayitlari();
     return { error };
   },
+
   updateSatisKaydi: async (id, updates) => {
-    const { error } = await supabase
-      .from("satis_kayitlari")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", id);
-
-    if (!error) {
-      get().fetchSatisKayitlari();
-    }
+    const { error } = await satisKaydiService.update(id, updates);
+    if (!error) get().fetchSatisKayitlari();
     return { error };
   },
-  deleteSatisKaydi: async (id) => {
-    const { error } = await supabase
-      .from("satis_kayitlari")
-      .delete()
-      .eq("id", id);
 
-    if (!error) {
-      get().fetchSatisKayitlari();
-    }
+  deleteSatisKaydi: async (id) => {
+    const { error } = await satisKaydiService.delete(id);
+    if (!error) get().fetchSatisKayitlari();
     return { error };
   },
 
@@ -1556,11 +1217,7 @@ export const useStore = create<AppState>((set, get) => ({
     set({ loadingUrunler: true });
     const { profile, kategoriler } = get();
     if (profile?.restaurant_id) {
-      const { data } = await supabase
-        .from("urunler")
-        .select("*")
-        .eq("restaurant_id", profile.restaurant_id)
-        .order("name", { ascending: true });
+      const { data } = await urunService.fetchAll(profile.restaurant_id);
 
       const urunlerWithJoins = (data || []).map((urun: Urun) => ({
         ...urun,
@@ -1571,30 +1228,23 @@ export const useStore = create<AppState>((set, get) => ({
     }
     set({ loadingUrunler: false });
   },
+
   addUrun: async (urun) => {
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const { error } = await supabase.from("urunler").insert({
+    const { error } = await urunService.create({
       ...urun,
       restaurant_id: profile.restaurant_id,
-      is_active: true,
     });
 
-    if (!error) {
-      get().fetchUrunler();
-    }
+    if (!error) get().fetchUrunler();
     return { error };
   },
-  updateUrun: async (id, updates) => {
-    const { error } = await supabase
-      .from("urunler")
-      .update({ ...updates, updated_at: new Date().toISOString() })
-      .eq("id", id);
 
-    if (!error) {
-      get().fetchUrunler();
-    }
+  updateUrun: async (id, updates) => {
+    const { error } = await urunService.update(id, updates);
+    if (!error) get().fetchUrunler();
     return { error };
   },
 
@@ -1605,12 +1255,9 @@ export const useStore = create<AppState>((set, get) => ({
     const { profile } = get();
     if (!profile?.restaurant_id) return { error: "No restaurant" };
 
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    const user = await profileService.getCurrentUser();
     if (!user) return { error: "No user" };
 
-    // Transfer işlemi ekle
     const { error } = await supabase.from("islemler").insert({
       type: "transfer",
       amount,
@@ -1623,18 +1270,8 @@ export const useStore = create<AppState>((set, get) => ({
     });
 
     if (!error) {
-      // Kaynak kasadan çıkış
-      await supabase.rpc("update_kasa_balance", {
-        kasa_id: fromKasaId,
-        amount: -amount,
-      });
-
-      // Hedef kasaya giriş
-      await supabase.rpc("update_kasa_balance", {
-        kasa_id: toKasaId,
-        amount: amount,
-      });
-
+      await kasaService.updateBalance(fromKasaId, -amount);
+      await kasaService.updateBalance(toKasaId, amount);
       get().fetchKasalar();
       get().fetchIslemler();
     }

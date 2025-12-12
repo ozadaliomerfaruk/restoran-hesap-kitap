@@ -1,0 +1,1 @@
+export { useHammaddelerData } from "./useHammaddelerData";
