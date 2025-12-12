@@ -27,6 +27,7 @@ import { useStore } from "../store/useStore";
 import { Cari, MenuItem } from "../types";
 import { supabase } from "../lib/supabase";
 import DatePickerField from "./DatePickerField";
+import { formatCurrency } from "../shared/utils";
 
 interface Props {
   visible: boolean;
@@ -204,13 +205,6 @@ export default function MusteriKalemliFaturaModal({
   );
   const toplamKdv = kalemler.reduce((sum, k) => sum + calculateKalemKdv(k), 0);
   const genelToplam = araToplam + toplamKdv;
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("tr-TR", {
-      style: "currency",
-      currency: "TRY",
-    }).format(amount);
-  };
 
   const handleSave = async () => {
     const invalidKalem = kalemler.find(

@@ -2,7 +2,6 @@
  * Personel Service
  */
 
-import personel from "app/(tabs)/personel";
 import { supabase } from "../../lib/supabase";
 import { Personel, PersonelIslem, Izin } from "../../types";
 

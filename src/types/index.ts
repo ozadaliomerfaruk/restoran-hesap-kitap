@@ -438,11 +438,11 @@ export interface MenuItem {
   id: string;
   restaurant_id: string;
   name: string;
-  category?: string; // ana yemek, tatlı, içecek vb. (opsiyonel)
-  price: number;
-  unit: string; // adet, porsiyon, kg, lt vb.
+  category?: string;
+  price: number | null; // DB'de nullable
+  unit: string;
   is_active: boolean;
-  include_in_invoice: boolean; // satış faturasında gösterilsin mi
+  include_in_invoice: boolean;
   created_at: string;
   updated_at: string;
 }

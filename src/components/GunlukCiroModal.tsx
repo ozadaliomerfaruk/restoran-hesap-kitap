@@ -23,6 +23,7 @@ import {
 import { useStore } from "../store/useStore";
 import { Kasa, Kategori } from "../types";
 import DatePickerField from "./DatePickerField";
+import { formatCurrency } from "../shared/utils";
 
 interface GunlukCiroModalProps {
   visible: boolean;
@@ -104,13 +105,6 @@ export default function GunlukCiroModal({
     return Object.values(ciroValues).reduce((sum, val) => {
       return sum + (parseFloat(val) || 0);
     }, 0);
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("tr-TR", {
-      style: "currency",
-      currency: "TRY",
-    }).format(amount);
   };
 
   const handleSubmit = async () => {

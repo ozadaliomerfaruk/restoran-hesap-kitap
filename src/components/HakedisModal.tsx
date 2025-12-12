@@ -26,6 +26,7 @@ import {
 } from "lucide-react-native";
 import { useStore } from "../store/useStore";
 import { Personel, PersonelIslemType } from "../types";
+import { formatCurrency } from "../shared/utils";
 
 interface HakedisModalProps {
   visible: boolean;
@@ -142,14 +143,6 @@ export default function HakedisModal({ visible, onClose }: HakedisModalProps) {
     }));
     setHakedisler(list);
   }, [personeller, selectedKategori]);
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("tr-TR", {
-      style: "currency",
-      currency: "TRY",
-      minimumFractionDigits: 2,
-    }).format(value);
-  };
 
   // Virgülü noktaya çeviren yardımcı fonksiyon
   const parseAmount = (value: string): number => {

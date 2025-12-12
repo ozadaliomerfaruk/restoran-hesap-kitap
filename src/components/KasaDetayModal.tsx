@@ -26,6 +26,7 @@ import {
 } from "lucide-react-native";
 import { useStore } from "../store/useStore";
 import { Kasa, Islem } from "../types";
+import { formatCurrency, formatDate } from "../shared/utils";
 
 interface KasaDetayModalProps {
   visible: boolean;
@@ -96,22 +97,6 @@ export default function KasaDetayModal({
     };
     loadIslemler();
   }, [visible, kasa]);
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("tr-TR", {
-      style: "currency",
-      currency: "TRY",
-    }).format(amount);
-  };
-
-  const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("tr-TR", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
-  };
 
   const getIslemIcon = (type: string, isIncoming: boolean) => {
     if (type === "transfer") {

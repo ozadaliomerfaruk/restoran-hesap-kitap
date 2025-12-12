@@ -4,7 +4,7 @@ import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Package, Edit3, Calendar, Trash2 } from "lucide-react-native";
 import { SatisKaydi } from "../../../types";
-import { formatCurrency } from "../../../shared/utils";
+import { formatCurrency, formatDate } from "../../../shared/utils";
 
 interface SatisGecmisiListProps {
   satislar: SatisKaydi[];
@@ -23,13 +23,7 @@ export const SatisGecmisiList: React.FC<SatisGecmisiListProps> = ({
 }) => {
   const getDateKey = (dateStr: string) => dateStr.split("T")[0];
 
-  const formatDateHeader = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("tr-TR", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-  };
+  const formatDateHeader = (dateStr: string) => formatDate(dateStr, "full");
 
   return (
     <View style={styles.section}>

@@ -32,7 +32,7 @@ import * as Sharing from "expo-sharing";
 import * as Print from "expo-print";
 import DatePickerField from "../../src/components/DatePickerField";
 import { useRaporData, ReportType } from "../../src/features/raporlar";
-import { formatCurrency } from "../../src/shared/utils";
+import { formatCurrency, formatDate } from "../../src/shared/utils";
 
 const REPORT_TABS: { key: ReportType; label: string }[] = [
   { key: "ozet", label: "Özet" },
@@ -79,13 +79,6 @@ export default function RaporlarScreen() {
     await refreshAll();
     setRefreshing(false);
   };
-
-  const formatDate = (dateStr: string) =>
-    new Date(dateStr).toLocaleDateString("tr-TR", {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    });
 
   // PDF Export
   const exportToPDF = async () => {

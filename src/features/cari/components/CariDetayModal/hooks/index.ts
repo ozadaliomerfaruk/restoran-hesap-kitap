@@ -1,0 +1,1 @@
+export { useCariDetay } from "./useCariDetay";

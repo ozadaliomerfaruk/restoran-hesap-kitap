@@ -87,14 +87,7 @@ export const PersonelDetailModal: React.FC<PersonelDetailModalProps> = ({
 
   // Tarih ayracı için helper
   const getDateKey = (dateStr: string) => dateStr.split("T")[0];
-  const formatDateHeader = (dateStr: string) => {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("tr-TR", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-  };
+  const formatDateHeader = (dateStr: string) => formatDate(dateStr, "full");
 
   return (
     <Modal

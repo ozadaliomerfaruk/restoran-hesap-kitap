@@ -14,6 +14,7 @@ import {
 import { X, CreditCard, Calendar, Info } from "lucide-react-native";
 import { useStore } from "../store/useStore";
 import { Kasa } from "../types";
+import { formatCurrency } from "../shared/utils";
 
 interface KrediKartiDuzenleModalProps {
   visible: boolean;
@@ -87,15 +88,6 @@ export default function KrediKartiDuzenleModal({
       onSuccess?.();
       onClose();
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("tr-TR", {
-      style: "currency",
-      currency: "TRY",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
   };
 
   return (

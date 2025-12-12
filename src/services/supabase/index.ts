@@ -17,3 +17,8 @@ export * from "./animsatici.service";
 export * from "./menuItem.service";
 export * from "./urun.service";
 export * from "./satisKaydi.service";
+
+// YENİ EKLENDİ
+export * from "./islemKalemleri.service";
+export * from "./gunlukSatisDetay.service";
+export * from "./activityLog.service";

@@ -72,6 +72,6 @@ export const tabConfig: Record<
   { table: string; emptyText: string }
 > = {
   cariler: { table: "cariler", emptyText: "Arşivlenmiş cari yok" },
-  personel: { table: "personeller", emptyText: "Arşivlenmiş personel yok" },
+  personel: { table: "personel", emptyText: "Arşivlenmiş personel yok" },
   hesaplar: { table: "kasalar", emptyText: "Arşivlenmiş hesap yok" },
 };

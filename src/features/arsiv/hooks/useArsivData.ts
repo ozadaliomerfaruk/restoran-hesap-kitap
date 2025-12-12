@@ -35,7 +35,7 @@ export const useArsivData = () => {
 
     // Arşivlenmiş personeller
     const { data: personeller } = await supabase
-      .from("personeller")
+      .from("personel")
       .select("id, name, balance, is_archived, created_at")
       .eq("restaurant_id", profile.restaurant_id)
       .eq("is_archived", true)

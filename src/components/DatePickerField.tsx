@@ -11,6 +11,7 @@ import DateTimePicker, {
   DateTimePickerEvent,
 } from "@react-native-community/datetimepicker";
 import { Calendar } from "lucide-react-native";
+import { formatDate } from "../shared/utils";
 
 interface DatePickerFieldProps {
   value: string; // YYYY-MM-DD format
@@ -33,12 +34,7 @@ export default function DatePickerField({
   // Tarihi formatla
   const formatDisplayDate = (dateStr: string) => {
     if (!dateStr) return placeholder;
-    const date = new Date(dateStr);
-    return date.toLocaleDateString("tr-TR", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
+    return formatDate(dateStr, "full");
   };
 
   const handleChange = (event: DateTimePickerEvent, selectedDate?: Date) => {

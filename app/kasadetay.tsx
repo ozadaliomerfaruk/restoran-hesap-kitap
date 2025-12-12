@@ -392,13 +392,7 @@ export default function KasaDetayScreen() {
 
   // Tarih ayracı için
   const getDateKey = (dateStr: string) => dateStr.split("T")[0];
-  const formatDateHeader = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString("tr-TR", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-  };
+  const formatDateHeader = (dateStr: string) => formatDate(dateStr, "full");
 
   // Loading state
   if (!kasa) {

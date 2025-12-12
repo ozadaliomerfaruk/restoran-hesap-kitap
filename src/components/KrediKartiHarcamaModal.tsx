@@ -27,6 +27,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useStore } from "../store/useStore";
 import { Kasa, Cari, Kategori } from "../types";
 import { supabase } from "../lib/supabase";
+import { formatCurrency } from "../shared/utils";
 
 interface KrediKartiHarcamaModalProps {
   visible: boolean;
@@ -245,15 +246,6 @@ export default function KrediKartiHarcamaModal({
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("tr-TR", {
-      style: "currency",
-      currency: "TRY",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
   };
 
   // Gider kategorileri

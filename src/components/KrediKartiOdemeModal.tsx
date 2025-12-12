@@ -25,7 +25,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import { useStore } from "../store/useStore";
 import { Kasa } from "../types";
 import { supabase } from "../lib/supabase";
-
+import { formatCurrency } from "../shared/utils";
 interface KrediKartiOdemeModalProps {
   visible: boolean;
   onClose: () => void;
@@ -170,15 +170,6 @@ export default function KrediKartiOdemeModal({
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat("tr-TR", {
-      style: "currency",
-      currency: "TRY",
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(value);
   };
 
   const selectedSourceKasa = kasalar.find((k) => k.id === sourceKasaId);
