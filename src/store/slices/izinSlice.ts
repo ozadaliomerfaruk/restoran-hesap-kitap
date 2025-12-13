@@ -79,8 +79,8 @@ export const createIzinSlice: StoreSlice<IzinSlice> = (set, get) => ({
         await personelService.updateUsedLeave(izin.personel_id, izin.days);
       }
 
-      get().fetchIzinler();
-      get().fetchPersoneller();
+      // İlgili verileri paralel yenile
+      await Promise.all([get().fetchIzinler(), get().fetchPersoneller()]);
     }
 
     return { error };
@@ -90,7 +90,7 @@ export const createIzinSlice: StoreSlice<IzinSlice> = (set, get) => ({
     const { error } = await personelService.updateIzin(id, updates);
 
     if (!error) {
-      get().fetchIzinler();
+      await get().fetchIzinler();
     }
 
     return { error };

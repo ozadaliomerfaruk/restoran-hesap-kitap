@@ -6,14 +6,15 @@
  * REFACTOR NOTES:
  * - Eski monolitik useStore.ts 1280+ satırdı
  * - Şimdi her slice kendi dosyasında (~50-120 satır)
- * - Bu dosya sadece composition yapıyor (~80 satır)
+ * - Bu dosya sadece composition yapıyor
  *
- * MIGRATION:
- * - Tüm import'lar aynı kalıyor: import { useStore } from '@/store/useStore'
- * - API değişikliği yok, mevcut kullanımlar çalışmaya devam eder
+ * PERFORMANCE:
+ * - useStoreShallow: Sadece seçilen state değişince render
+ * - useStoreAction: Action seçerken rerender yok
  */
 
 import { create } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 
 // Slice imports
 import {
@@ -109,21 +110,32 @@ export const useStore = create<StoreState>()((...args) => ({
 }));
 
 // ============================================
-// SELECTOR HOOKS (Opsiyonel - Performance)
+// SELECTOR HOOKS (Performance)
 // ============================================
 
 /**
  * Shallow comparison ile selector kullanımı
  *
- * Örnek:
- * const { kasalar, loadingKasalar } = useStoreShallow((state) => ({
- *   kasalar: state.kasalar,
- *   loadingKasalar: state.loadingKasalar,
+ * Bu hook, sadece seçilen state parçaları değiştiğinde
+ * component'i yeniden render eder.
+ *
+ * Kullanım:
+ * const { kasalar, loadingKasalar } = useStoreShallow((s) => ({
+ *   kasalar: s.kasalar,
+ *   loadingKasalar: s.loadingKasalar,
  * }));
  */
-// import { useShallow } from 'zustand/react/shallow';
-// export const useStoreShallow = <T>(selector: (state: StoreState) => T) =>
-//   useStore(useShallow(selector));
+export const useStoreShallow = <T>(selector: (state: StoreState) => T) =>
+  useStore(useShallow(selector));
+
+/**
+ * Tek bir action seçmek için (rerender yapmaz)
+ *
+ * Kullanım:
+ * const addKasa = useStoreAction((s) => s.addKasa);
+ */
+export const useStoreAction = <T>(selector: (state: StoreState) => T) =>
+  useStore(selector);
 
 // ============================================
 // DEFAULT EXPORT

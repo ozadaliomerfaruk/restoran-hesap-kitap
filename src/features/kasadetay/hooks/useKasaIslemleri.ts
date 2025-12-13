@@ -32,6 +32,33 @@ export function useKasaIslemleri(kasaId: string | undefined) {
       .eq("kasa_id", kasaId)
       .order("date", { ascending: false });
 
+    // Tüm created_by ID'lerini topla
+    const allCreatedByIds = [
+      ...(islemlerData || []).map((i) => i.created_by),
+      ...(personelData || []).map((i) => i.created_by),
+    ].filter(Boolean);
+
+    const uniqueCreatedByIds = [...new Set(allCreatedByIds)];
+
+    // Kullanıcı bilgilerini al
+    let profilesMap: Record<
+      string,
+      { id: string; name?: string; email?: string }
+    > = {};
+
+    if (uniqueCreatedByIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, name, email")
+        .in("id", uniqueCreatedByIds);
+
+      if (profiles) {
+        profiles.forEach((p) => {
+          profilesMap[p.id] = p;
+        });
+      }
+    }
+
     const birlesikListe: BirlesikIslem[] = [];
 
     (islemlerData || []).forEach((islem) => {
@@ -61,6 +88,9 @@ export function useKasaIslemleri(kasaId: string | undefined) {
         kategori: islem.kategori,
         target_kasa: relatedKasa,
         isTransferIn,
+        created_by_user: islem.created_by
+          ? profilesMap[islem.created_by]
+          : undefined,
       });
     });
 
@@ -79,6 +109,9 @@ export function useKasaIslemleri(kasaId: string | undefined) {
         kasa_id: islem.kasa_id,
         source: "personel",
         personel: islem.personel,
+        created_by_user: islem.created_by
+          ? profilesMap[islem.created_by]
+          : undefined,
       });
     });
 

@@ -5,7 +5,12 @@
  */
 
 // Main store
-export { useStore, type StoreState } from "./useStore";
+export {
+  useStore,
+  useStoreShallow,
+  useStoreAction,
+  type StoreState,
+} from "./useStore";
 export { useStore as default } from "./useStore";
 
 // Types

@@ -87,14 +87,56 @@ export const personelService = {
     restaurantId: string,
     limit: number = 100
   ): Promise<{ data: PersonelIslem[]; error: any }> {
-    const { data, error } = await supabase
+    // Önce işlemleri al
+    const { data: islemler, error } = await supabase
       .from("personel_islemler")
-      .select("*")
+      .select(
+        `
+        *,
+        personel:personel(id, name),
+        kasa:kasalar(id, name)
+      `
+      )
       .eq("restaurant_id", restaurantId)
       .order("date", { ascending: false })
       .limit(limit);
 
-    return { data: data || [], error };
+    if (error || !islemler) {
+      return { data: [], error };
+    }
+
+    // created_by user'ları ayrı sorgula
+    const createdByIds = [
+      ...new Set(islemler.map((i) => i.created_by).filter(Boolean)),
+    ];
+
+    let profilesMap: Record<
+      string,
+      { id: string; name?: string; email?: string }
+    > = {};
+
+    if (createdByIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, name, email")
+        .in("id", createdByIds);
+
+      if (profiles) {
+        profiles.forEach((p) => {
+          profilesMap[p.id] = p;
+        });
+      }
+    }
+
+    // İşlemlere created_by_user ekle
+    const islemlerWithUser = islemler.map((islem) => ({
+      ...islem,
+      created_by_user: islem.created_by
+        ? profilesMap[islem.created_by]
+        : undefined,
+    }));
+
+    return { data: islemlerWithUser, error: null };
   },
 
   async createIslem(

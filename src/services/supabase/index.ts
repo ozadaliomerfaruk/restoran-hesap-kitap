@@ -22,3 +22,4 @@ export * from "./satisKaydi.service";
 export * from "./islemKalemleri.service";
 export * from "./gunlukSatisDetay.service";
 export * from "./activityLog.service";
+export { restaurantUserService } from "./restaurantUser.service";

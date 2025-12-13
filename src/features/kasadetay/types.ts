@@ -17,6 +17,7 @@ export interface BirlesikIslem {
   kategori_id?: string;
   target_kasa?: { id: string; name: string };
   isTransferIn?: boolean;
+  created_by_user?: { id: string; name?: string; email?: string };
 }
 
 export type IslemTipi = "gelir" | "gider" | "odeme" | "tahsilat" | "transfer";

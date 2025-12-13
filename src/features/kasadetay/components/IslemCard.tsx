@@ -24,6 +24,7 @@ import {
 } from "lucide-react-native";
 import { colors, spacing, borderRadius } from "@/shared/constants";
 import { formatCurrency } from "@/shared/utils";
+import { CreatedByBadge } from "@/shared/components";
 import { BirlesikIslem, islemTipiLabels, islemTipiColors } from "../types";
 
 interface IslemCardProps {
@@ -134,6 +135,12 @@ export function IslemCard({
               >
                 {islem.description}
               </Text>
+            )}
+            {/* Kullanıcı Etiketi */}
+            {islem.created_by_user && (
+              <View style={styles.userRow}>
+                <CreatedByBadge user={islem.created_by_user} size="small" />
+              </View>
             )}
           </View>
         </View>
@@ -313,6 +320,7 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   desc: { fontSize: 14, color: "#9ca3af", marginTop: 4 },
+  userRow: { marginTop: 4 },
   amount: { fontSize: 18, fontWeight: "700" },
   expanded: {
     paddingHorizontal: 16,

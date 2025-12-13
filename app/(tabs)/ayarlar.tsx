@@ -31,6 +31,7 @@ interface MenuItem {
   color: string;
   badge?: string;
   highlight?: boolean;
+  onPress?: () => void;
 }
 
 interface MenuSection {
@@ -63,13 +64,19 @@ export default function Ayarlar() {
     {
       title: "Hesap",
       items: [
-        { icon: User, label: "Profil Bilgileri", color: "#3b82f6" },
+        {
+          icon: User,
+          label: "Profil Bilgileri",
+          color: "#3b82f6",
+          onPress: () => router.push("/profil"),
+        },
         { icon: Building2, label: "Restoran Ayarları", color: "#10b981" },
         {
           icon: Users,
           label: "Kullanıcı Yönetimi",
           color: "#8b5cf6",
           badge: "PRO",
+          onPress: () => router.push("/kullanici-yonetimi"),
         },
       ],
     },
@@ -148,6 +155,7 @@ export default function Ayarlar() {
                         styles.menuItemBorder,
                       item.highlight && styles.menuItemHighlight,
                     ]}
+                    onPress={item.onPress}
                   >
                     <View
                       style={[

@@ -10,15 +10,58 @@ export const islemService = {
     restaurantId: string,
     limit: number = 100
   ): Promise<{ data: Islem[]; error: any }> {
-    const { data, error } = await supabase
+    // Önce işlemleri al
+    const { data: islemler, error } = await supabase
       .from("islemler")
-      .select("*")
+      .select(
+        `
+        *,
+        kasa:kasalar!islemler_kasa_id_fkey(id, name, type),
+        cari:cariler(id, name, type),
+        kategori:kategoriler(id, name, type)
+      `
+      )
       .eq("restaurant_id", restaurantId)
       .order("date", { ascending: false })
       .order("created_at", { ascending: false })
       .limit(limit);
 
-    return { data: data || [], error };
+    if (error || !islemler) {
+      return { data: [], error };
+    }
+
+    // created_by user'ları ayrı sorgula
+    const createdByIds = [
+      ...new Set(islemler.map((i) => i.created_by).filter(Boolean)),
+    ];
+
+    let profilesMap: Record<
+      string,
+      { id: string; name?: string; email?: string }
+    > = {};
+
+    if (createdByIds.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, name, email")
+        .in("id", createdByIds);
+
+      if (profiles) {
+        profiles.forEach((p) => {
+          profilesMap[p.id] = p;
+        });
+      }
+    }
+
+    // İşlemlere created_by_user ekle
+    const islemlerWithUser = islemler.map((islem) => ({
+      ...islem,
+      created_by_user: islem.created_by
+        ? profilesMap[islem.created_by]
+        : undefined,
+    }));
+
+    return { data: islemlerWithUser, error: null };
   },
 
   async create(

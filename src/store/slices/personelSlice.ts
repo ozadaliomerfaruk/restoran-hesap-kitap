@@ -83,7 +83,7 @@ export const createPersonelSlice: StoreSlice<PersonelSlice> = (set, get) => ({
     });
 
     if (!error) {
-      get().fetchPersoneller();
+      await get().fetchPersoneller();
     }
 
     return { error, data };
@@ -93,7 +93,7 @@ export const createPersonelSlice: StoreSlice<PersonelSlice> = (set, get) => ({
     const { error } = await personelService.update(id, updates);
 
     if (!error) {
-      get().fetchPersoneller();
+      await get().fetchPersoneller();
     }
 
     return { error };
@@ -103,7 +103,7 @@ export const createPersonelSlice: StoreSlice<PersonelSlice> = (set, get) => ({
     const { error } = await personelService.archive(id);
 
     if (!error) {
-      get().fetchPersoneller();
+      await get().fetchPersoneller();
     }
 
     return { error };
@@ -161,9 +161,12 @@ export const createPersonelSlice: StoreSlice<PersonelSlice> = (set, get) => ({
     });
 
     if (result.success) {
-      get().fetchPersonelIslemler();
-      get().fetchKasalar();
-      get().fetchPersoneller();
+      // İlgili verileri paralel yenile
+      await Promise.all([
+        get().fetchPersonelIslemler(),
+        get().fetchKasalar(),
+        get().fetchPersoneller(),
+      ]);
     }
 
     return { error: result.success ? null : result.error };

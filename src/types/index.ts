@@ -38,25 +38,61 @@ export interface RestaurantUser {
   restaurant?: Restaurant;
 }
 
+// Yetki seviyesi
+export type PermissionLevel = "readonly" | "own" | "full";
+
 // Kullanıcı yetkileri
 export interface UserPermissions {
-  // Modül erişimleri
-  dashboard?: boolean;
-  kasalar?: boolean;
-  cariler?: boolean;
-  personel?: boolean;
-  islemler?: boolean;
-  raporlar?: boolean;
-  tekrarlayan_odemeler?: boolean;
-  cek_senet?: boolean;
-  gunluk_satis?: boolean;
-  ayarlar?: boolean;
-  // İşlem yetkileri
-  can_create?: boolean;
-  can_edit?: boolean;
-  can_delete?: boolean;
-  can_export?: boolean;
+  // Modül erişimleri (true = erişebilir)
+  modules: {
+    dashboard: boolean;
+    kasalar: boolean;
+    cariler: boolean;
+    personel: boolean;
+    islemler: boolean;
+    raporlar: boolean;
+    tekrarlayan_odemeler: boolean;
+    cek_senet: boolean;
+    gunluk_satis: boolean;
+    ayarlar: boolean;
+  };
+  // İşlem yetki seviyesi
+  level: PermissionLevel;
 }
+
+// Varsayılan yetkiler
+export const DEFAULT_PERMISSIONS: UserPermissions = {
+  modules: {
+    dashboard: true,
+    kasalar: false,
+    cariler: false,
+    personel: false,
+    islemler: false,
+    raporlar: false,
+    tekrarlayan_odemeler: false,
+    cek_senet: false,
+    gunluk_satis: false,
+    ayarlar: false,
+  },
+  level: "readonly",
+};
+
+// Admin için tam yetki
+export const ADMIN_PERMISSIONS: UserPermissions = {
+  modules: {
+    dashboard: true,
+    kasalar: true,
+    cariler: true,
+    personel: true,
+    islemler: true,
+    raporlar: true,
+    tekrarlayan_odemeler: true,
+    cek_senet: true,
+    gunluk_satis: true,
+    ayarlar: true,
+  },
+  level: "full",
+};
 
 // ==========================================
 // KASA
@@ -169,6 +205,7 @@ export interface Islem {
   kategori?: Kategori;
   personel?: Personel;
   taksit?: Taksit;
+  created_by_user?: { id: string; name?: string; email?: string };
 }
 
 export type IslemType = Islem["type"];
@@ -259,6 +296,7 @@ export interface PersonelIslem {
   // Joined
   personel?: Personel;
   kasa?: Kasa;
+  created_by_user?: { id: string; name?: string; email?: string };
 }
 
 export type PersonelIslemType = PersonelIslem["type"];

@@ -82,7 +82,7 @@ export const createCekSenetSlice: StoreSlice<CekSenetSlice> = (set, get) => ({
     });
 
     if (!error) {
-      get().fetchCekSenetler();
+      await get().fetchCekSenetler();
     }
 
     return { error };
@@ -105,9 +105,12 @@ export const createCekSenetSlice: StoreSlice<CekSenetSlice> = (set, get) => ({
       );
 
       if (result.success) {
-        get().fetchCekSenetler();
-        get().fetchKasalar();
-        get().fetchCariler();
+        // İlgili verileri paralel yenile
+        await Promise.all([
+          get().fetchCekSenetler(),
+          get().fetchKasalar(),
+          get().fetchCariler(),
+        ]);
       }
 
       return { error: result.success ? null : result.error };
@@ -117,7 +120,7 @@ export const createCekSenetSlice: StoreSlice<CekSenetSlice> = (set, get) => ({
     const { error } = await cekSenetService.update(id, updates);
 
     if (!error) {
-      get().fetchCekSenetler();
+      await get().fetchCekSenetler();
     }
 
     return { error };
@@ -127,7 +130,7 @@ export const createCekSenetSlice: StoreSlice<CekSenetSlice> = (set, get) => ({
     const { error } = await cekSenetService.delete(id);
 
     if (!error) {
-      get().fetchCekSenetler();
+      await get().fetchCekSenetler();
     }
 
     return { error };

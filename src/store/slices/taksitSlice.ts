@@ -141,7 +141,7 @@ export const createTaksitSlice: StoreSlice<TaksitSlice> = (set, get) => ({
       kategori_id: taksit.kategori_id,
     });
 
-    get().fetchTaksitler();
+    await get().fetchTaksitler();
 
     return { error: null };
   },
@@ -150,7 +150,7 @@ export const createTaksitSlice: StoreSlice<TaksitSlice> = (set, get) => ({
     const { error } = await taksitService.update(id, updates);
 
     if (!error) {
-      get().fetchTaksitler();
+      await get().fetchTaksitler();
     }
 
     return { error };
@@ -201,8 +201,8 @@ export const createTaksitSlice: StoreSlice<TaksitSlice> = (set, get) => ({
         next_payment_date: nextOdeme?.due_date,
       });
 
-      get().fetchTaksitler();
-      get().fetchKasalar();
+      // İlgili verileri paralel yenile
+      await Promise.all([get().fetchTaksitler(), get().fetchKasalar()]);
     }
 
     return { error: result.success ? null : result.error };

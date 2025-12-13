@@ -116,12 +116,12 @@ export const createIslemSlice: StoreSlice<IslemSlice> = (set, get) => ({
     );
 
     if (result.success) {
-      // İlgili verileri yenile
-      get().fetchIslemler();
-      get().fetchKasalar();
-      if (islem.cari_id) {
-        get().fetchCariler();
-      }
+      // İlgili verileri paralel yenile
+      await Promise.all([
+        get().fetchIslemler(),
+        get().fetchKasalar(),
+        islem.cari_id ? get().fetchCariler() : Promise.resolve(),
+      ]);
     }
 
     return { error: result.success ? null : result.error };
@@ -131,9 +131,12 @@ export const createIslemSlice: StoreSlice<IslemSlice> = (set, get) => ({
     const { error } = await islemService.update(id, updates);
 
     if (!error) {
-      get().fetchIslemler();
-      get().fetchKasalar();
-      get().fetchCariler();
+      // İlgili verileri paralel yenile
+      await Promise.all([
+        get().fetchIslemler(),
+        get().fetchKasalar(),
+        get().fetchCariler(),
+      ]);
     }
 
     return { error };
@@ -158,11 +161,12 @@ export const createIslemSlice: StoreSlice<IslemSlice> = (set, get) => ({
     const result = await ledger.deleteIslem(islem, cariType);
 
     if (result.success) {
-      get().fetchIslemler();
-      get().fetchKasalar();
-      if (islem.cari_id) {
-        get().fetchCariler();
-      }
+      // İlgili verileri paralel yenile
+      await Promise.all([
+        get().fetchIslemler(),
+        get().fetchKasalar(),
+        islem.cari_id ? get().fetchCariler() : Promise.resolve(),
+      ]);
     }
 
     return { error: result.success ? null : result.error };
@@ -193,8 +197,8 @@ export const createIslemSlice: StoreSlice<IslemSlice> = (set, get) => ({
     );
 
     if (result.success) {
-      get().fetchKasalar();
-      get().fetchIslemler();
+      // İlgili verileri paralel yenile
+      await Promise.all([get().fetchKasalar(), get().fetchIslemler()]);
     }
 
     return { error: result.success ? null : result.error };
